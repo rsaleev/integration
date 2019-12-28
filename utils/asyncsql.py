@@ -5,77 +5,63 @@ import time
 
 class AsyncDBPool():
 
-    def __init__(self, size: int, name: str, conn: dict, loop: None):
-
-        self.size = size
-        self.name = name
+    def __init__(self, conn: dict, loop: None):
         self.conn = conn
         self.pool = None
         self.connected = False
-        self.loop = None
+        self.loop = loop
         self.cursor = aiomysql.DictCursor
 
     async def connect(self):
         while self.pool is None:
             try:
-                self.pool = await aiomysql.create_pool(minsize=1, maxsize=self.size, **self.conn, loop=self.loop, autocommit=True)
+                self.pool = await aiomysql.create_pool(**self.conn, loop=self.loop, autocommit=True)
                 if not self.pool is None:
                     self.connected = True
-                return self
             except aiomysql.OperationalError as e:
-                code, description = e.args
-                if code == 2003:
-                    continue
-                else:
-                    raise
+                await asyncio.sleep(1)
+                continue
             finally:
                 return self
 
-    def disconnect(self):
-        try:
-            self.pool.close()
-            # self.pool.wait_closed()
-        except:
-            raise
-
-    async def callproc(self, procedure: str, rows: None, values: list):
+    async def callproc(self, procedure: str,  rows: int = None, values: list = None):
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
                     await cur.callproc(procedure, [*values])
-                    if rows and rows > 1:
-                        result = await cur.fetchmany(rows)
-                    elif rows and rows == 1:
+                    result = None
+                    if rows == 1:
                         result = await cur.fetchone()
-                    else:
+                    if rows > 1:
+                        result = await cur.fetchmany(rows)
+                    elif rows == -1:
                         result = await cur.fetchall()
+                    elif rows == 0:
+                        pass
                     await cur.close()
                     return result
         except aiomysql.OperationalError as e:
             code, description = e.args
             if code == 2003 or 1053:
-                self._create()
+                self.connect()
             else:
                 raise
 
-    async def execute(self, size, stmt: str, *args):
+    async def execute(self, stmt: str, rows: None, *args):
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
                     await cur.execute(stmt, *args)
-                    if size > 1:
-                        result = await cur.fetchmany(size)
-                        # cur.close()
-                        # self.pool.release(conn)
-                    elif size == 1:
+                    result = None
+                    if rows == 1:
                         result = await cur.fetchone()
-                    else:
+                    elif rows == 0:
                         result = await cur.fetchall()
                     await cur.close()
                     return result
         except aiomysql.OperationalError as e:
             code, description = e.args
             if code == 2003 or 1053:
-                self._create()
+                self.connect()
             else:
                 raise

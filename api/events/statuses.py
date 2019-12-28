@@ -13,10 +13,10 @@ import json
 class StatusListener:
 
     def __init__(self):
-        self.__amqp_receiver_cnx: object = None
-        self.__amqp_receiver_ch: object = None
-        self.__amqp_recevier_ex: object = None
-        self.__amqp_receiver_q: object = None
+        self.__amqp_cnx: object = None
+        self.__amqp_ch: object = None
+        self.__amqp_ex: object = None
+        self.__amqp_q: object = None
         self.__dbconnector_wp: object = None
         self.__dbconnector_is: object = None
         self.__logger: object = None
@@ -37,16 +37,14 @@ class StatusListener:
         await self.__logger.info(f'Module {self.name}. Logging initialized')
         return self
 
-    async def _receiver_connect(self):
+    async def _amqp_connect(self):
         try:
-            self.__amqp_receiver_cnx = await connect_robust(f"amqp://{amqp_user}:{amqp_password}@{amqp_host}/", loop=self.eventloop)
-            self.__amqp_receiver_ch = await self.__amqp_receiver_cnx.channel()
-            self.__amqp_receiver_ex = await self.__amqp_receiver_ch.declare_exchange('statuses')
-            self.__amqp_receiver_q = await self.__amqp_receiver_ch.declare_queue('status')
-            # await self.__amqp_receiver_q.bind(self.__amqp_receiver_ex, routing_key='loop')
-            # await self.__amqp_receiver_q.bind(self.__amqp_receiver_ex, routing_key='payment')
-            await self.__amqp_receiver_q.bind(self.__amqp_receiver_ex, routing_key='device')
-            await self.__logger.info(f"Connected to:{self.__amqp_receiver_cnx}")
+            self.__amqp_cnx = await connect_robust(f"amqp://{amqp_user}:{amqp_password}@{amqp_host}/", loop=self.eventloop)
+            self.__amqp_ch = await self.__amqp_cnx.channel()
+            self.__amqp_ex = await self.__amqp_ch.declare_exchange('integration', ExchangeType.TOPIC)
+            self.__amqp_q = await self.__amqp_ch.declare_queue('status', durable=True)
+            await self.__amqp_q.bind(self.__amqp_ex, '#')
+            await self.__logger.info(f"Connected to:{self.__amqp_cnx}")
             self.__amqp_receiver_status = True
             return self
         except Exception as e:
@@ -73,29 +71,19 @@ class StatusListener:
     async def _dispatch(self):
         while True:
             try:
-                async with self.__amqp_receiver_q.iterator() as q:
+                async with self.__amqp_q.iterator() as q:
                     async for message in q:
                         message.ack()
                         data = json.loads(message.body.decode())
                         asyncio.ensure_future(self.__logger.debug(data))
-                        await self.__dbconnector_is.callproc('wp_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value']])
+                        await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value']])
             except Exception as e:
                 asyncio.ensure_future(self.__logger.error(e))
                 continue
 
     def run(self):
-        try:
-            self.eventloop = asyncio.get_event_loop()
-            self.eventloop.run_until_complete(self._log_init())
-            self.eventloop.run_until_complete(self._sql_connect())
-            self.eventloop.run_until_complete(self._receiver_connect())
-            if self.status:
-                self.eventloop.run_until_complete(self._dispatch())
-            else:
-                self.eventloop.stop()
-                self.eventloop.close()
-                raise Exception("Process not started. Check logs")
-        except:
-            # self.eventloop.stop()
-            self.eventloop.stop()
-            raise
+        self.eventloop = asyncio.get_event_loop()
+        self.eventloop.run_until_complete(self._log_init())
+        self.eventloop.run_until_complete(self._sql_connect())
+        self.eventloop.run_until_complete(self._amqp_connect())
+        self.eventloop.run_until_complete(self._dispatch())

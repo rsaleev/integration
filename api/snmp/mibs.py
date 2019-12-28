@@ -7,7 +7,7 @@ from enum import Enum
 @dataclass
 class SNMPObject:
 
-    def __init__(self, codename_value: str, oid_value: str, status_map=None, forced_value: str = None):
+    def __init__(self, codename_value: str, oid_value: str, status_map: object = None, forced_value: str = None):
         self.codename = codename_value
         self.oid = oid_value
         self.__snmpvalue: int = None
@@ -16,7 +16,7 @@ class SNMPObject:
         self.__device_type: int = None
         self.__statusname = status_map
         self.__statusforced = forced_value
-        self.__snmpvalue: int = None
+        self.__snmpvalue: int = -1
         self.__ampp_id: int = None
         self.__ampp_type: int = None
         self.__ts = datetime
@@ -92,11 +92,15 @@ class SNMPObject:
     @snmpvalue.getter
     def snmpvalue(self):
         if self.__statusname:
+
             return self.__statusname(self.__snmpvalue).name
         elif self.__statusforced:
             return self.__statusforced
-        else:
-            return self.__snmpvalue
+        elif not self.__statusname and not self.__statusforced:
+            if self.codename in ["12VBoard", "24VBoard"]:
+                return self.__snmpvalue/10
+            elif self.codename == "24ABoard":
+                return self.__snmpvalue/100
 
     @property
     def ts(self):
@@ -134,8 +138,8 @@ receiving_mibs = [
     SNMPObject('IOBoard1.Temperature', '.1.3.6.1.4.1.40383.1.2.2.86', forced_value='HOT_TEMP_WARNING').instance,
     SNMPObject('IOBoard1.Temperature', '.1.3.6.1.4.1.40383.1.2.2.88', forced_value='HOT_TEMP_ALARM').instance,
     SNMPObject('IOBoard1.Humidity', '.1.3.6.1.4.1.40383.1.2.2.65', forced_value='HIGH_HUMIDITY_ALARM').instance,
-    SNMPObject('ZebraOutOfPaper', '.1.3.6.1.4.1.40383.1.2.1.10002.2.3').instance,
-    SNMPObject('BarrierStatus', '.1.3.6.1.4.1.40383.1.2.2.111').instance,
+    SNMPObject('TicketPrinter1', '.1.3.6.1.4.1.40383.1.2.1.10002.2.3', forced_value='OUT_OF_TICKETS').instance,
+    SNMPObject('BarrierStatus', '.1.3.6.1.4.1.40383.1.2.2.111', Barrier).instance,
     SNMPObject('BarrierLoop1Status', '.1.3.6.1.4.1.40383.1.2.2.112', status_map=Loop).instance,
     SNMPObject('BarrierLoop2Status', '.1.3.6.1.4.1.40383.1.2.2.113', status_map=Loop).instance,
     SNMPObject('MiddleDoor', '.1.3.6.1.4.1.40383.1.2.2.16', forced_value='OPENED_WITH_ALARM').instance,
@@ -164,7 +168,23 @@ polling_mibs = [
     SNMPObject('Heater', '.1.3.6.1.4.1.40383.1.2.2.42', status_map=Heater).instance,
     SNMPObject('FanIn', '.1.3.6.1.4.1.40383.1.2.2.40', status_map=FanIn).instance,
     SNMPObject('FanOut', '.1.3.6.1.4.1.40383.1.2.2.41', status_map=FanOut).instance,
-    SNMPObject('IOBoard1.Hummidity', '.1.3.6.1.4.1.40383.1.2.2.65').instance,
+    SNMPObject('IOBoard1.Humidity', '.1.3.6.1.4.1.40383.1.2.2.65').instance,
+    SNMPObject('IOBoard2.Humidity', '.1.3.6.1.4.1.40383.1.2.2.75').instance,
+    SNMPObject('IOBoard1.Temperature', '.1.3.6.1.4.1.40383.1.2.2.64').instance,
+    SNMPObject('IOBoard2.Temperature', '.1.3.6.1.4.1.40383.1.2.2.74').instance,
+    SNMPObject('UpperDoor', '.1.3.6.1.4.1.40383.1.2.2.21', status_map=UppperDoor).instance,
+    SNMPObject('VoIP', '.1.3.6.1.4.1.40383.1.2.1.60001.1', status_map=VoIP).instance,
+    SNMPObject('Roboticket1', '.1.3.6.1.4.1.40383.1.2.1.10001.2', status_map=Roboticket).instance,
+    SNMPObject('Roboticket2', '.1.3.6.1.4.1.40383.1.2.1.10006.2', status_map=Roboticket).instance,
+    SNMPObject('AlmostOutOfPaper', '1.3.6.1.4.1.40383.1.2.2.0', status_map=AlmostOutOfPaper).instance,
+    SNMPObject('IOBoards', '.1.3.6.1.4.1.40383.1.2.1.50001.1', status_map=IOBoards).instance,
+    SNMPObject('PaperDevice1', '.1.3.6.1.4.1.40383.1.2.3.2', status_map=PaperDevice).instance,
+    SNMPObject('PaperDevice2', '.1.3.6.1.4.1.40383.1.2.3.3', status_map=PaperDevice).instance,
+    SNMPObject('General', '.1.3.6.1.4.1.40383.1.2.3.0', status_map=General).instance,
+    SNMPObject('Heater', '.1.3.6.1.4.1.40383.1.2.2.42', status_map=Heater).instance,
+    SNMPObject('FanIn', '.1.3.6.1.4.1.40383.1.2.2.40', status_map=FanIn).instance,
+    SNMPObject('FanOut', '.1.3.6.1.4.1.40383.1.2.2.41', status_map=FanOut).instance,
+    SNMPObject('IOBoard1.Humidity', '.1.3.6.1.4.1.40383.1.2.2.65').instance,
     SNMPObject('IOBoard2.Humidity', '.1.3.6.1.4.1.40383.1.2.2.75').instance,
     SNMPObject('IOBoard1.Temperature', '.1.3.6.1.4.1.40383.1.2.2.64').instance,
     SNMPObject('IOBoard2.Temperature', '.1.3.6.1.4.1.40383.1.2.2.74').instance,
@@ -197,10 +217,11 @@ polling_mibs = [
     SNMPObject('IOCCtalk', '.1.3.6.1.4.1.40383.1.2.1.50002.1', status_map=IOCCTalk).instance,
     SNMPObject('FiscalPrinter', '.1.3.6.1.4.1.40383.1.2.1.10005.1', status_map=FiscalPrinter).instance,
     SNMPObject('FiscalPrinterBD', '.1.3.6.1.4.1.40383.1.2.1.10005.2', status_map=FiscalPrinterBD).instance,
-    SNMPObject('Loop1', '.1.3.6.1.4.1.40383.1.2.2.112', status_map=Loop).instance,
-    SNMPObject('Loop2', '.1.3.6.1.4.1.40383.1.2.2.113', status_map=Loop).instance,
+    SNMPObject('BarrierStatus', '.1.3.6.1.4.1.40383.1.2.2.2', status_map=Barrier).instance,
+    SNMPObject('BarrierLoop1Status', '.1.3.6.1.4.1.40383.1.2.2.18', status_map=Loop).instance,
+    SNMPObject('BarrierLoop2Status', '.1.3.6.1.4.1.40383.1.2.2.19', status_map=Loop).instance,
+    SNMPObject('BarrierLoop3Status', '.1.3.6.1.4.1.40383.1.2.2.20', status_map=Loop).instance,
     SNMPObject('12VBoard', '.1.3.6.1.4.1.40383.1.2.2.69').instance,
     SNMPObject('24VBoard', '.1.3.6.1.4.1.40383.1.2.2.70').instance,
-    SNMPObject('24ABoard', '.1.3.6.1.4.1.40383.1.2.2.71').instance
-    #SNMPObject('Barrier', '.1.3.6.1.4.1.40383.1.2.2.2')
+    SNMPObject('24ABoard', '.1.3.6.1.4.1.40383.1.2.2.71').instance,
 ]

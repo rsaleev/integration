@@ -5,37 +5,43 @@ from enum import Enum
 class General(Enum):
     OUT_OF_SERVICE = 0
     IN_SERVICE = 1
+    NO_RESPONSE = -1
 
 
 class Heater(Enum):
     OFF = 0
     ON = 1
-    ABSENT = -1
+    NO_RESPONSE = -1
 
 
 class FanIn(Enum):
     OFF = 0
     ON = 1
+    NO_RESPONSE = -1
 
 
 class FanOut(Enum):
     OFF = 0
     ON = 1
+    NO_RESPONSE = -1
 
 
 class UppperDoor(Enum):
     OPEN = 1
     CLOSED = 0
+    NO_RESPONSE = -1
 
 
 class MiddleDoor(Enum):
     OPEN = 1
     CLOSED = 0
+    NO_RESPONSE = -1
 
 
 class VoIP(Enum):
     UP = 1
     DOWN = 0
+    NO_RESPONSE = -1
 
 
 class Roboticket(Enum):
@@ -56,24 +62,29 @@ class Roboticket(Enum):
 class AlmostOutOfPaper(Enum):
     OK = 0
     ALMOST_OUT = 1
+    NO_RESPONSE = -1
 
 
 class IOBoards(Enum):
-    BOARD1_AND_BOARD2_OFFLINE = 0
+    BOARD1_OFFLINE_BOARD2_OFFLINE = 0
     BOARD1_OFFLINE_BOARD2_ONLINE = 1
     BOARD1_ONLINE_BOARD2_OFFLINE = 10
-    BOARD1_AND_BOARD2_ONLINE = 11
+    BOARD1_ONLINE_BOARD2_ONLINE = 11
+    BOARD1_ONLINE_BOARD2_ONLINE_BOARD3_ONLINE = 111
+    NO_RESPONSE = -1
 
 
 class PaperDevice(Enum):
     OUT_OF_PAPER = 0
     PAPER_PRESENTED = 1
     ALMOST_OUT_OF_PAPER = 2
+    NO_RESPONSE = -1
 
 
 class BarcodeReader(Enum):
     NO_RESPONSE = 0
     OK = 1
+    NOT_USED = - 1
 
 
 class TicketPrinter(Enum):
@@ -111,6 +122,7 @@ class TicketReader(Enum):
 class Coinbox(Enum):
     CASHBOX_REMOVED = 0
     CASHBOX_PRESENTED = 1
+    NO_RESPONSE = -1
 
 
 class CubeHopper(Enum):
@@ -140,6 +152,7 @@ class CoinsReader(Enum):
     ACTION_FAILED_COMMUNICATION_ERROR = -4
     ACTION_FAILED_DEVICE_ERROR = -5
     ACTION_FAILED_HALTED = -7
+    NO_RESPONSE = -1
 
 
 class CoinsHopper(Enum):
@@ -171,6 +184,7 @@ class NotesEscrow(Enum):
     CALIBRATION_FAULT = 36
     ATTACHED_MECH_JAM = 37
     ATTACHED_MECH_OPEN = 38
+    NO_RESPONSE = -1
 
 
 class NotesReader(Enum):
@@ -191,16 +205,19 @@ class NotesReader(Enum):
     ATTACHED_MECH_JAM = 37
     ATTACHED_MECH_OPEN = 38
     STILL_WAITING_FOR_1ST_RESPONSE = -100
+    NO_RESPONSE = -1
 
 
 class CoinBoxTriggered(Enum):
     COINBOX_UNTRIGGERED = 0
     COINBOX_TRIGGERED = 1
+    NO_RESPONSE = -1
 
 
 class Ups(Enum):
     OFF = 0
     ON = 1
+    NO_RESPONSE = -1
 
 
 class IOCCTalk(Enum):
@@ -224,6 +241,7 @@ class FiscalPrintingError(Enum):
     PAPER_PRESENTED = 0
     ERROR = 1
     OUT_OF_PAPER = 2
+    NO_RESPONSE = -1
 
 
 class FiscalPrinterBD(Enum):
@@ -236,11 +254,19 @@ class FiscalPrinterBD(Enum):
 class Loop(Enum):
     FREE = 0
     OCCUPIED = 1
+    NO_RESPONSE = -1
 
 
 class Barrier(Enum):
     OPENED = 1
     CLOSED = 0
+    NO_RESPONSE = -1
+
+
+class Loop(Enum):
+    OCCUPIED = 1
+    FREE = 0
+    NO_REPONSE = -1
 
 
 class PaymentType(Enum):

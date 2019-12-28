@@ -21,7 +21,6 @@ class AsyncLogger:
             interval=1,
             backup_count=31,
             encoding='utf-8')
-        handler.formatter = ExtendedJsonFormatter(default_msg_fieldname=LOGGED_AT_FIELDNAME,
-                                                  exclude_fields=[LINE_NUMBER_FIELDNAME, FILE_PATH_FIELDNAME, FUNCTION_NAME_FIELDNAME])
+        handler.formatter = ExtendedJsonFormatter(default_msg_fieldname=LOGGED_AT_FIELDNAME)
         logger.add_handler(handler)
         return logger
