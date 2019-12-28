@@ -24,7 +24,7 @@ class AsyncDBPool():
             finally:
                 return self
 
-    async def callproc(self, procedure: str,  rows: int = None, values: list = None):
+    async def callproc(self, procedure: str,  rows: int, values: list = None):
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
