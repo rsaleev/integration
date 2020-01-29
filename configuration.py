@@ -3,36 +3,41 @@ from configparser import RawConfigParser
 from datetime import datetime
 from pathlib import Path
 
-config_file = (str(Path(str(Path(__file__).parents[1]) + "/configuration/config.ini")))
+CONFIG_FILE = (str(Path(str(Path(__file__).parents[1]) + "/configuration/config.ini")))
 parser = RawConfigParser()
-parser.read(config_file)
+parser.read(CONFIG_FILE)
+
+
+logger = object
+
 
 ### WISEPARK SERVER ###
 
 server_ip = parser.get("WISEPARK", "server_ip")
 ### RDBS ###
-wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
-          "password": parser.get("WISEPARK", "rdbs_password"),
-          "host": parser.get("WISEPARK", "rdbs_host"),
-          "db": parser.get("WISEPARK", "rdbs_db"),
-          "port": parser.getint("WISEPARK", "rdbs_port"),
-          }
 is_cnx = {"user": parser.get("INTEGRATION", "rdbs_user"),
           "password": parser.get("INTEGRATION", "rdbs_password"),
           "host": parser.get("INTEGRATION", "rdbs_host"),
           "db": parser.get("INTEGRATION", "rdbs_db"),
-          "port": parser.getint("INTEGRATION", "rdbs_port"),
-          }
+          "port": parser.getint("INTEGRATION", "rdbs_port")}
+
+dbconnector_is = object
+
+wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
+          "password": parser.get("WISEPARK", "rdbs_password"),
+          "host": parser.get("WISEPARK", "rdbs_host"),
+          "db": parser.get("WISEPARK", "rdbs_db"),
+          "port": parser.getint("WISEPARK", "rdbs_port")}
+
+dbconnector_wp = object
 
 rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
-rdbs_polling_from = parser.get("AMPP", "start_date")
-
 
 ### AMPP ###
 device_mapping = str(Path(str(Path(__file__).parents[1]) + "/configuration/devices.json"))
 ampp_parking_id = parser.getint("AMPP", "parking_id")
 physically_challenged_total = parser.getint("AMPP", "physically_challenged_places")
-
+rdbs_polling_from = parser.get("AMPP", "start_date")
 
 ### LOG FILES ###
 if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs"))):
@@ -48,7 +53,12 @@ snmp_retries = parser.getint("INTEGRATION", "snmp_poller_retries")
 snmp_trap_host = parser.get("INTEGRATION", "snmp_receiver_host")
 snmp_trap_port = parser.getint("INTEGRATION", "snmp_receiver_port")
 
-
+# AMQP
 amqp_user = parser.get("INTEGRATION", "amqp_user")
 amqp_password = parser.get("INTEGRATION", "amqp_password")
 amqp_host = parser.get("INTEGRATION", "amqp_host")
+
+asgi_host = parser.get("REMOTE", "asgi_host")
+asgi_port = parser.getint("REMOTE", "asgi_port")
+asgi_workers = parser.getint("REMOTE", "asgi_workers")
+asgi_debug = parser.getboolean("REMOTE", "asgi_debug")

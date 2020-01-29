@@ -44,7 +44,9 @@ class AsyncSNMPReceiver:
         return self
 
     async def _amqp_connect(self):
-        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic', queue_name=None, bind=None).connect()
+        await self.__logger.info({'module': self.name, 'info': 'Establishing AMQP Connection Status'})
+        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        await self.__logger.info({'module': self.name, 'AMQP Connection Status': self.__amqpconnector.connected})
         return self
 
     async def _handler(self, host: str, port: int, message: aiosnmp.SnmpV2TrapMessage):

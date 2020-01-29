@@ -86,8 +86,11 @@ class SNMPObject:
         return self.__snmpvalue
 
     @snmpvalue.setter
-    def snmpvalue(self, value: int):
-        self.__snmpvalue = value
+    def snmpvalue(self, value):
+        if isinstance(value, int):
+            self.__snmpvalue = value
+        else:
+            pass
 
     @snmpvalue.getter
     def snmpvalue(self):
@@ -168,10 +171,6 @@ polling_mibs = [
     SNMPObject('Heater', '.1.3.6.1.4.1.40383.1.2.2.42', status_map=Heater).instance,
     SNMPObject('FanIn', '.1.3.6.1.4.1.40383.1.2.2.40', status_map=FanIn).instance,
     SNMPObject('FanOut', '.1.3.6.1.4.1.40383.1.2.2.41', status_map=FanOut).instance,
-    SNMPObject('IOBoard1.Humidity', '.1.3.6.1.4.1.40383.1.2.2.65').instance,
-    SNMPObject('IOBoard2.Humidity', '.1.3.6.1.4.1.40383.1.2.2.75').instance,
-    SNMPObject('IOBoard1.Temperature', '.1.3.6.1.4.1.40383.1.2.2.64').instance,
-    SNMPObject('IOBoard2.Temperature', '.1.3.6.1.4.1.40383.1.2.2.74').instance,
     SNMPObject('UpperDoor', '.1.3.6.1.4.1.40383.1.2.2.21', status_map=UppperDoor).instance,
     SNMPObject('VoIP', '.1.3.6.1.4.1.40383.1.2.1.60001.1', status_map=VoIP).instance,
     SNMPObject('Roboticket1', '.1.3.6.1.4.1.40383.1.2.1.10001.2', status_map=Roboticket).instance,
@@ -224,4 +223,8 @@ polling_mibs = [
     SNMPObject('12VBoard', '.1.3.6.1.4.1.40383.1.2.2.69').instance,
     SNMPObject('24VBoard', '.1.3.6.1.4.1.40383.1.2.2.70').instance,
     SNMPObject('24ABoard', '.1.3.6.1.4.1.40383.1.2.2.71').instance,
+    SNMPObject('IOBoard1.Humidity', '.1.3.6.1.4.1.40383.1.2.2.65').instance,
+    SNMPObject('IOBoard2.Humidity', '.1.3.6.1.4.1.40383.1.2.2.75').instance,
+    SNMPObject('IOBoard1.Temperature', '.1.3.6.1.4.1.40383.1.2.2.64').instance,
+    SNMPObject('IOBoard2.Temperature', '.1.3.6.1.4.1.40383.1.2.2.74').instance
 ]

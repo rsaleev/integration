@@ -3,6 +3,16 @@ import asyncio
 import time
 
 
+"""[summary]
+
+Returns:
+   AsyncDBPool object
+     attributes:
+       conn  - dictionary object with connection params
+       
+"""
+
+
 class AsyncDBPool():
 
     def __init__(self, conn: dict, loop: None):
@@ -10,7 +20,6 @@ class AsyncDBPool():
         self.pool = None
         self.connected = False
         self.loop = loop
-        self.cursor = aiomysql.DictCursor
 
     async def connect(self):
         while self.pool is None:

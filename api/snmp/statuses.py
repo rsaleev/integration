@@ -84,7 +84,7 @@ class PaperDevice(Enum):
 class BarcodeReader(Enum):
     NO_RESPONSE = 0
     OK = 1
-    NOT_USED = - 1
+    NOT_USED = -1
 
 
 class TicketPrinter(Enum):
@@ -140,6 +140,7 @@ class CubeHopper(Enum):
 class CCReader(Enum):
     NO_RESPONSE = 0
     OK = 1
+    NOT_USED = -1
 
 
 class CoinsReader(Enum):
@@ -236,7 +237,6 @@ class FiscalPrinter(Enum):
     NO_RESPONSE = 0
     OK = 1
 
-
 class FiscalPrintingError(Enum):
     PAPER_PRESENTED = 0
     ERROR = 1
@@ -249,7 +249,6 @@ class FiscalPrinterBD(Enum):
     SHIFT_OPEN_24H_NOT_ELAPSED = 2
     SHIFT_OPEN_24H_ELAPSED = 3
     SHIFT_CLOSED = 4
-
 
 class Loop(Enum):
     FREE = 0

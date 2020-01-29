@@ -2,57 +2,52 @@ from datetime import datetime
 import asyncio
 import signal
 from dataclasses import dataclass
-import aio_pika
-from aio_pika import Message, ExchangeType, DeliveryMode, IncomingMessage, connect_robust
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
+from utils.asyncamqp import AsyncAMQP
 from configuration import wp_cnx, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
 import json
+from threading import Thread
 
 
 class StatusListener:
 
     def __init__(self):
-        self.__amqp_cnx: object = None
-        self.__amqp_ch: object = None
-        self.__amqp_ex: object = None
-        self.__amqp_q: object = None
-        self.__dbconnector_wp: object = None
         self.__dbconnector_is: object = None
+        self.__amqpconnector_poller: object = None
+        self.__amqpconnector_loops: object = None
+        self.__amqpconnector_traps: object = None
         self.__logger: object = None
         self.__loop: object = None
         self.__amqp_receiver_status = bool
-        self.__sql_status = bool
         self.name = 'StatusesListener'
 
     @property
     def status(self):
-        if self.__amqp_receiver_status and self.__sql_status:
+        if self.__amqpconnector.connected and self.__dbconnector_is.connected:
             return True
         else:
             return False
 
     async def _log_init(self):
         self.__logger = await AsyncLogger().getlogger(sys_log)
-        await self.__logger.info(f'Module {self.name}. Logging initialized')
+        await self.__logger.info({"module": self.name, "info": "Logging initialized"})
         return self
 
     async def _amqp_connect(self):
-        try:
-            self.__amqp_cnx = await connect_robust(f"amqp://{amqp_user}:{amqp_password}@{amqp_host}/", loop=self.eventloop)
-            self.__amqp_ch = await self.__amqp_cnx.channel()
-            self.__amqp_ex = await self.__amqp_ch.declare_exchange('integration', ExchangeType.TOPIC)
-            self.__amqp_q = await self.__amqp_ch.declare_queue('status', durable=True)
-            await self.__amqp_q.bind(self.__amqp_ex, '#')
-            await self.__logger.info(f"Connected to:{self.__amqp_cnx}")
-            self.__amqp_receiver_status = True
-            return self
-        except Exception as e:
-            self.__amqp_receiver_status = False
-            await self.__logger.error(e)
-            raise
-        finally:
-            return self
+        await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
+        self.__amqpconnector = await AsyncAMQP(loop=self.eventloop,
+                                               user=amqp_user,
+                                               password=amqp_password,
+                                               host=amqp_host,
+                                               exchange_name='integration',
+                                               exchange_type='topic',
+                                               queue_name='statuses',
+                                               priority_queue=True,
+                                               binding='#').connect()
+        asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'AMQP Connection',
+                                                  'status': self.__amqpconnector.connected}))
+        return self
 
     async def _sql_connect(self):
         try:
@@ -68,18 +63,46 @@ class StatusListener:
         finally:
             return self
 
-    async def _dispatch(self):
+    async def _polling_receiver(self):
         while True:
             try:
-                async with self.__amqp_q.iterator() as q:
-                    async for message in q:
-                        message.ack()
-                        data = json.loads(message.body.decode())
-                        asyncio.ensure_future(self.__logger.debug(data))
-                        await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value']])
+                data = await self.__amqpconnector_poller.receive()
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
             except Exception as e:
                 asyncio.ensure_future(self.__logger.error(e))
                 continue
+
+    async def _loops_receiver(self):
+        while True:
+            try:
+                data = await self.__amqpconnector_receiver.receive()
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
+            except Exception as e:
+                asyncio.ensure_future(self.__logger.error(e))
+                continue
+
+    async def _traps_receiver(self):
+        while True:
+            try:
+                data = await self.__amqpconnector_receiver.receive()
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
+            except Exception as e:
+                asyncio.ensure_future(self.__logger.error(e))
+                continue
+
+    async def _dispatch(self):
+        loop1 = asyncio.get_event_loop()
+        loop2 = asyncio.get_event_loop()
+        loop3 = asyncio.get_event_loop()
+        t1 = Thread(name="SNMP Polling Listener", target=loop1.run_until_complete(self._polling_receiver())).start()
+        t1.start()
+        t2 = Thread(name="SNMP Loops Trap Listener", target=loop2.run_until_complete(self._loops_receiver()))
+        t2.start()
+        t3 = Thread(name="SNMP Traps Listener", target=loop2.run_until_complete(self._traps_receiver()))
+        t3.start()
+        await self.__logger.info({"module": self.name, "thread": t1.getName(), "status": t1.is_alive()})
+        await self.__logger.info({"module": self.name, "thread": t2.getName(), "status": t2.is_alive()})
+        await self.__logger.info({"module": self.name, "thread": t3.getName(), "status": t3.is_alive()})
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
