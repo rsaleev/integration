@@ -19,10 +19,10 @@ async def get_ticket(ticket):
     if re.match("^[1-9]{4}[0-9]{7}$", ticket) or re.match("[1-9]{4}[0-9]{20}$", ticket):
         try:
             if len(ticket) == 11:
-                data = await ws.dbconnector_wp.callproc('rem_ticket_show', rows=-1, values=[None, ticket])
+                data = await ws.dbconnector_wp.callproc('wp_ticket_get', rows=-1, values=[None, ticket])
                 return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
             elif len(ticket) == 24:
-                data = await ws.dbconnector_wp.callproc('rem_ticket_show', rows=-1, values=[ticket, None])
+                data = await ws.dbconnector_wp.callproc('wp_ticket_get', rows=-1, values=[ticket, None])
                 return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
         except(OperationalError, ProgrammingError) as e:
             tasks.add_task(ws.logger.error, {'module': name, 'path': f"rest/monitoring/ticket/number/{ticket}", 'error': repr(e)})
@@ -46,21 +46,21 @@ async def upd_ticket(ticket, operation):
                     tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, True, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'rem_ticket_reactivate', rows=0, values=[ticket, None, True, False])
+                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             elif operation == 'free':
                 if len(ticket) == 11:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'rem_ticket_free', rows=0, values=[None, ticket, True, True])
+                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, True, True])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'rem_ticket_free', rows=0, values=[ticket, None, True, True])
+                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, True])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             elif operation == 'deactivate':
                  if len(ticket) == 11:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'rem_ticket_reactivate', rows=0, values=[None, ticket, False, False])
+                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, False, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'rem_ticket_reactivate', rows=0, values=[ticket, None, False, False])
+                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, False, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             else:
                 return Response(json.dumps({'error': 'FORBIDDEN', 'comment': f"Forbidden"}), status_code=403, media_type='application/json', background=task)
