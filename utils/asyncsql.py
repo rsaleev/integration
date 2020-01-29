@@ -28,9 +28,13 @@ class AsyncDBPool():
                 if not self.pool is None:
                     self.connected = True
             except aiomysql.OperationalError as e:
-                await asyncio.sleep(1)
-                continue
-            finally:
+                code, description = e.args
+                if code == 2003 or 1053:
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    raise e
+            else:
                 return self
 
     async def callproc(self, procedure: str,  rows: int, values: list = None):
@@ -52,7 +56,7 @@ class AsyncDBPool():
         except aiomysql.OperationalError as e:
             code, description = e.args
             if code == 2003 or 1053:
-                self.connect()
+                await self.connect()
             else:
                 raise
 
@@ -64,13 +68,17 @@ class AsyncDBPool():
                     result = None
                     if rows == 1:
                         result = await cur.fetchone()
-                    elif rows == 0:
+                    elif rows > 1:
+                        result = await cur.fetchmany(rows)
+                    elif rows == -1:
                         result = await cur.fetchall()
+                    elif rows == 0:
+                        pass
                     await cur.close()
                     return result
         except aiomysql.OperationalError as e:
             code, description = e.args
             if code == 2003 or 1053:
-                self.connect()
+                await self.connect()
             else:
                 raise

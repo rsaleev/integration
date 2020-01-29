@@ -11,6 +11,7 @@ from api.events.statuses import StatusListener
 from api.events.places import PlacesListener
 from api.icmp.poller import AsyncPingPoller
 from utils.asynclog import AsyncLogger
+from service import webservice
 import signal
 import os
 from datetime import datetime
@@ -26,6 +27,7 @@ class Application:
         self.logger = None
         self.dbconnector_is = None
         self.eventloop = loop
+        self.name = 'application'
 
     async def log_init(self):
         self.logger = await AsyncLogger().getlogger(sys_log)
@@ -109,23 +111,24 @@ class Application:
                 # create record in DB tables
                 for p in places:
                     asyncio.ensure_future(self.dbconnector_is.callproc('is_places_ins', rows=0, values=[
-                                          p['areTotalPark'], p['areFreePark'], physically_challenged_total, p['areFloor'], p['areNumber']]))
-                await self.logger.info(f"Discovered places:{[p for p in places]}")
+                                          p['areTotalPark'], p['areFreePark'], physically_challenged_total, p['areFloor'], p['areNumber'], p['areDescription']]))
+                await self.logger.info(f"Discovered places:{[pl for pl in places]}")
                 dbconnector_wp.pool.terminate()
                 await dbconnector_wp.pool.wait_closed()
                 return self
             except Exception as e:
-                raise e
+                await self.logger.error({'module': self.name, 'error': repr(e)})
+                raise SystemExit
 
     """
     initializes processes with type 'fork' (native for *NIX)
     """
     async def proc_init(self):
         # statuses listener process
-        # statuses_listener = StatusListener()
-        # statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
-        # self.processes.append(statuses_listener_proc)
-        # # # ping poller process
+        statuses_listener = StatusListener()
+        statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
+        self.processes.append(statuses_listener_proc)
+        # ping poller process
         icmp_poller = AsyncPingPoller(self.devices)
         icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
         self.processes.append(icmp_poller_proc)
@@ -133,10 +136,13 @@ class Application:
         snmp_poller = AsyncSNMPPoller(self.devices)
         snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
         self.processes.append(snmp_poller_proc)
-        # # # SNMP receiver process
+        # SNMP receiver process
         snmp_receiver = AsyncSNMPReceiver(self.devices)
         snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
         self.processes.append(snmp_receiver_proc)
+        # Webservice
+        asgi_service_proc = Process(target=webservice.run, name=webservice.name)
+        self.processes.append(asgi_service_proc)
 
         return self
 

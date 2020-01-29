@@ -9,7 +9,6 @@ from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingErro
 from pystemd.systemd1 import Unit
 from pystemd.exceptions import PystemdRunError
 from pystemd.dbusexc import DBusFileNotFoundError
-from p
 
 router = APIRouter()
 
@@ -52,7 +51,7 @@ async def upd_services(service_name, operation):
         unit.load()
         if operation == 'stop':
             unit.Unit.Stop(b'replace')
-            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate":unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
+            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
         elif operation == 'start':
             unit.Unit.Start(f"{service_name}.service".encode())
             return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
@@ -67,4 +66,3 @@ async def upd_services(service_name, operation):
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': f"{operation} is not supported"}), status_code=403, media_type='application/json')
     except DBusFileNotFoundError:
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=403, media_type='application/json')
-

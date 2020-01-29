@@ -70,7 +70,7 @@ async def upd_ticket(ticket, operation):
                     return Response(status_code=200, media_type='application/json', background=task)
             else:
                 return Response(json.dumps({'error': 'WRONG_REQUEST', 'comment': f"Wrong request param {operation}"}), status_code=403, media_type='application/json', background=task)
-       except(OperationalError, ProgrammingError) as e:
+        except(OperationalError, ProgrammingError) as e:
             code, description = e.args
             if code == 1146:
                 return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')

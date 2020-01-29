@@ -14,6 +14,16 @@ logger = object
 ### WISEPARK SERVER ###
 
 server_ip = parser.get("WISEPARK", "server_ip")
+object_id = parser.get("WISEPARK", "site_id")
+
+
+### WISEPARK SOAP SERVICE ###
+
+soap_user = parser.get("WISEPARK", "soap_username")
+soap_password = parser.get("WISEPARK", "soap_password")
+soap_url = parser.get("WISEPARK", "soap_url")
+soap_timeout = parser.getint("WISEPARK", "soap_timeout")
+
 ### RDBS ###
 is_cnx = {"user": parser.get("INTEGRATION", "rdbs_user"),
           "password": parser.get("INTEGRATION", "rdbs_password"),
@@ -21,7 +31,6 @@ is_cnx = {"user": parser.get("INTEGRATION", "rdbs_user"),
           "db": parser.get("INTEGRATION", "rdbs_db"),
           "port": parser.getint("INTEGRATION", "rdbs_port")}
 
-dbconnector_is = object
 
 wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
           "password": parser.get("WISEPARK", "rdbs_password"),
@@ -29,7 +38,6 @@ wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
           "db": parser.get("WISEPARK", "rdbs_db"),
           "port": parser.getint("WISEPARK", "rdbs_port")}
 
-dbconnector_wp = object
 
 rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
 
@@ -37,14 +45,13 @@ rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
 device_mapping = str(Path(str(Path(__file__).parents[1]) + "/configuration/devices.json"))
 ampp_parking_id = parser.getint("AMPP", "parking_id")
 physically_challenged_total = parser.getint("AMPP", "physically_challenged_places")
-rdbs_polling_from = parser.get("AMPP", "start_date")
 
 ### LOG FILES ###
 if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs"))):
     os.mkdir(str(Path(str(Path(__file__).parents[1]) + "/logs")))
 if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs/integration"))):
     os.mkdir(str(Path(str(Path(__file__).parents[1]) + "/logs/integration")))
-sys_log = (str(Path(str(Path(__file__).parents[1]) + "/logs/integration/sys.log")))
+log = (str(Path(str(Path(__file__).parents[1]) + "/logs/integration/sys.log")))
 
 # SNMP
 snmp_polling = parser.getint("INTEGRATION", "snmp_poller_interval")

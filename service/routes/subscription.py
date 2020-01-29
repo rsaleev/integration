@@ -1,6 +1,7 @@
 from fastapi.routing import APIRouter
 import configuration as cfg
 from starlette.responses import Response
+from starlette.background import BackgroundTasks
 from pydantic import BaseModel, validator, ValidationError
 from typing import Optional
 import json
@@ -14,6 +15,7 @@ from datetime import datetime
 
 
 router = APIRouter()
+name = 'webservice_subscription'
 
 
 class Subscription(BaseModel):
@@ -32,91 +34,100 @@ class Subscription(BaseModel):
 
 @router.get('/rest/monitoring/subscription')
 async def get_subscriptions():
+    tasks = BackgroundTasks()
     try:
         data = await cfg.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, None, None, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        await cfg.logger.error({'module': 'webservice', 'path': 'rest/monitoring/subscription', 'error': repr((e))})
-        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500)
+        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription', 'error': repr(e)})
+        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
 @router.get('/rest/monitoring/subscription/plate/{value}')
 async def get_subscription_by_plate(value):
+    tasks = BackgroundTasks()
     try:
         data = await cfg.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, value, None, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        await cfg.logger.error({'module': 'webservice', 'path': 'rest/monitoring/subscription/plate', 'error': repr((e))})
-        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500)
+        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription/plate', 'error': repr(e)})
+        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
 @router.get('/rest/monitoring/subscription/name/{value}')
 async def get_subscription_by_name(value):
+    tasks = BackgroundTasks()
     try:
         data = await cfg.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, value, None, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        await cfg.logger.error({'module': 'webservice', 'path': 'rest/monitoring/subscription/name', 'error': repr(e)})
-        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500)
+        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription/name', 'error': repr(e)})
+        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
 @router.get('/rest/monitoring/subscription/cardcode/{data}')
 async def get_subscription_by_cardcode(value):
+    tasks = BackgroundTasks()
     try:
         data = await cfg.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, None, value, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        await cfg.logger.error({'module': 'webservice', 'path': 'rest/monitoring/subscription/cardcode', 'error': repr(e)})
-        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500)
+        tasks.add_task(cfg.logger.error, {'module': name, 'path': 'rest/monitoring/subscription/cardcode', 'error': repr(e)})
+        return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
-# 
+#
 @router.get('/rest/monitoring/subscription/cardid/{data}')
 async def get_subscription_by_cardid(value):
+    tasks = BackgroundTasks()
     try:
         data = await cfg.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, None, None, data])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
-     except(OperationalError, ProgrammingError) as e:
+    except (OperationalError, ProgrammingError) as e:
+        tasks = BackgroundTasks(ws.logger.error, {'module': name, 'path': f'rest/monitoring/subscription/cardid/{value}', 'error': repr(e)})
         await cfg.logger.error({'module': 'webservice', 'error': repr(e)})
         if code == 1146:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
         elif code == 1305:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
+        else:
+            return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Internal Error'}), status_code=404, media_type='application/json', background=tasks)
 
-# insert new record 
+
+# insert new record
 @router.put('/rest/monitoring/subscription')
-async def add_subcription(subscription: Subscription)
-   try:
+async def add_subcription(subscription: Subscription):
+    try:
         await cfg.dbconnector_wp.callproc('sub_ins', rows=0, values=[subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
                                                                      subscription.sub_name, subscription.sub_email, subscriprion.sub_phone])
-         return Response(status_code=200)
+        return Response(status_code=200)
     except(OperationalError, ProgrammingError) as e:
         await cfg.logger.error({'module': 'webservice', 'error': repr(e)})
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
         elif code == 1305:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
-       
+
 
 # update subscription data
 @router.post('/rest/monitoring/subscription/{subid}')
-async def add_subcription(subid, subscription: Subscription)
-   try:
+async def add_subcription(subid, subscription: Subscription):
+    try:
         await cfg.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
                                                                      subscription.sub_name, subscription.sub_email, subscriprion.sub_phone])
         return Response(status_code=200)
     except(OperationalError, ProgrammingError) as e:
-            code, description = e.args
-            await cfg.logger.error({'module': 'webservice', 'error': repr(e)})
-            if code == 1146:
-                return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
-            elif code == 1305:
-                return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+        code, description = e.args
+        await cfg.logger.error({'module': 'webservice', 'error': repr(e)})
+        if code == 1146:
+            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+        elif code == 1305:
+            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 # delete subscription data. Data will not be deleted from table but values will be changed to use this record again through update
 @router.delete('/rest/monitoring/subscription/{subid}')
-async def del_subscription(subid)
-   try:
-        await cfg.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, None, 'rezerved','rezerved', None, None, 'rezerved',
+async def del_subscription(subid):
+    try:
+        await cfg.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, None, 'rezerved', 'rezerved', None, None, 'rezerved',
                                                                      'rezerved', 'rezerved', 'rezerved'])
         return Response(status_code=200)
     except(OperationalError, ProgrammingError) as e:
@@ -124,4 +135,4 @@ async def del_subscription(subid)
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
         elif code == 1305:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')        
+            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')

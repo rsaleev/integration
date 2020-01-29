@@ -9,9 +9,14 @@ from datetime import datetime
 from dateutil import parser as dp
 from typing import List
 from aiomysql import OperationalError, DatabaseError, ProgrammingError
+import service.settings as ws
+from aiomysql import OperationalError, ProgrammingError
+from starlette.background import BackgroundTasks
 
 
 router = APIRouter()
+
+name = 'ws_places'
 
 
 class Places(BaseModel):
@@ -26,19 +31,23 @@ class Places(BaseModel):
 
 
 @router.get('/rest/monitoring/places')
-def get_places():
-    data = await cfg.dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+async def get_places():
+    data = await ws.dbconnector_wp.callproc('is_places_get', rows=-1, values=[None])
     return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
 
 
 @router.post('/rest/monitoring/places')
-def upd_places(*, places: List[Places]):
+async def upd_places(*, places: List[Places]):
+    tasks = BackgroundTasks()
     try:
         for p in places:
             try:
-                await cfg.dbconnector_wp('wp_places_upd', rows=0, values=[p.parking_number, p.client_free])
-                await cfg.dbconnectow_is('is_places_upd', rows=0, values=[p.client_busy, p.vip_client_busy, p.parking_number])
-    except ValidationError:
-        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not valid request'}), status_code=403, media_type='application/json')
-    except OperationalError, DatabaseError, ProgrammingError:
-        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+                await ws.dbconnector_wp('wp_places_upd', rows=0, values=[p.parking_number, p.client_free])
+                await ws.dbconnectow_is('is_places_upd', rows=0, values=[p.client_busy, p.vip_client_busy, p.parking_number])
+                return Response(status_code=200)
+            except (ProgrammingError, OperationalError) as e:
+                tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
+                return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Connection refused'}), status_code=404, media_type='application/json', background=tasks)
+    except ValidationError as e:
+        tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
+        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not valid request'}), status_code=403, media_type='application/json', background=tasks)

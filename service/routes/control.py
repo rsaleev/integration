@@ -1,19 +1,17 @@
 
 from fastapi.routing import APIRouter
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 import json
 from pydantic import BaseModel, ValidationError, validator
-import re
-from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingError
 import configuration as cfg
-from zeep.asyncio.transport import AsyncTransport
-from zeep.client import Client
 import asyncio
 from datetime import datetime
-from configuration import soap_username, soap_password, soap_url, site_id, soap_timeout
-from zeep.client import Client, Document
-from zeep.asyncio.transport import AsyncTransport
-import io
+from zeep.exceptions import TransportError, LookupError
+from zeep.exceptions import Error as ClientError
+from service.settings import soapconnector_wp
+from typing import Optional
+from enum import Enum
+
 
 router = APIRouter()
 
@@ -22,114 +20,45 @@ class RemoteControl:
 
     def __init__(self):
         self.devices = list
-        self.client = object
-
-    async def reboot(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='reboot',
-                                                                   sDescription='Reboot device')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
-
-    async def turn_on(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='maintenanceoff',
-                                                                   sDescription='Turn on device')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
-
-    async def turn_off(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='maintenanceon',
-                                                                   sDescription='Turn off device')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
-
-    # barrier commands
-
-    async def open_barrier(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='open',
-                                                                   sDescription='Open barrier')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
-
-    async def close_barrier(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='close',
-                                                                   sDescription='Close barrier')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
-
-    async def open_and_lock_barrier(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='lockedopen',
-                                                                   sDescription='Open and lock barrier')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
-
-    async def unlock_barrier(self, device_id):
-        try:
-            terminal_id = next([d['terId'] for d in self.__devices if ['amppId'] == device_id])
-            self.client.deviceid = terminal_id
-            rc = await self.__client.service.setDeviceStatusHeader(sHeader=self.client.header,
-                                                                   sStatus='lockedopenoff',
-                                                                   sDescription='Unlock barrier')
-            return rc['rSuccess']
-        except Exception as e:
-            raise e
+        self.soapconnector = soapconnector_wp
 
 
 class CommandRequest(BaseModel):
     type: str
-    error: int = 0
+    error: int
     date_event: datetime
     device_number: Optional[int]
+    came_device_id: Optional[int]
     device_ip: Optional[str]
     device_type: Optional[int]
     command_number: Optional[int]
     device_events_id: Optional[int]
     parking_number: Optional[int]
+    client_free: Optional[int]
+    client_busy: Optional[int]
+    vip_client_free: Optional[int]
+    vip_client_busy: Optional[int]
 
-    @validator('date_event')
-    def str_to_datetime(cls, v):
-        return dp.parse(v)
+    @validator('type')
+    def type_validation(cls, v):
+        if (v == 'command' and device_number is None or came_device_id is None or command_number is None):
+            raise ValidationError
+        elif (v == 'places' and client_free is None or vip_client_free is None or client_busy is None or vip_client_busy is None):
+            raise ValidationError
 
 
 class CommandResponse(BaseModel):
     type: str
-    error: int
-    date_event: str
-    device_number: Optional[str]
-    device_ip: Optional[str]
+    error: str
     device_type: Optional[str]
-    command_number: Optional[str]
+    device_number: Optional[str]
     device_events_id: Optional[str]
+    date_event: str
     parking_number: Optional[str]
+
+    @validator('date_event')
+    def str_to_datetime(cls, v):
+        return dp.parse(v)
 
     @validator('date_event')
     def datetime_to_str(cls, v):
@@ -146,91 +75,160 @@ class CommandType(Enum):
     REBOOT = 25
 
 
-@router.post('/rest/control', response_model=CommandResponse):
-async def rem_control(rc, command: CommandRequest):
+@router.post('/rest/control')
+async def rem_control(*, request: CommandRequest):
     uid = uuid4()
-    if command.device_number in [da['amppId'] for da in rc.devices]:
-        try:
-            device_id = next(dw['terId'] for dw in rc.devices if dw['amppId'] == command.device_number)
-            tasks = BackgroundTasks()
+    tasks = BackgroundTasks()
+    response = CommandResponse(**request.dict(exclude_unset=True))
+    try:
+        if (request.device_number in [da['amppId'] for da in rc.devices] or request.device_number in [dw['terAddress'] for dw in rc.devices]):
+            tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": json.dumps(request.dict(exclude_unset=True))})
+            tasks.add_task(tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}), datetime.now()]))
+            # define device id for request
+            rc.deviceid = next([d['terAddress'] for d in self.__devices if ['amppId'] == device_id], request.device_number)
             try:
-                if command.command_number == 3:
-                    result = await rc.open_barrier(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                if request.command_number == 3:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='open')
+                    if cmd['rSuccess']:
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'open barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), status_code=200, media_type='application/json', background=tasks)
+                            {'uid': str(uid),  'response': request.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-                elif command.command_number == 6:
-                    result = await rc.close_barrier(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation":  CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'close barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-                elif command.command_number == 9:
-                    result = await rc.lock_barrier(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 6:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='close')
+                    if cmd['rSuccess']:
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation":  CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'close barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), status_code=200, media_type='application/json', background=tasks)
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-                elif command.command_number == 12:
-                    result = await rc.unlock_barrier(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'close barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-                elif command.command_number == 15:
-                    result = await rc.turn_off(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 9:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='lockedopen')
+                    if cmd['rSuccess']:
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'close barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), default=st, status_code=200, media_type='application/json', background=tasks)
+                            {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-                elif command.command_number == 18:
-                    result = await rc.turn_on(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'close barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-                elif command.command_number == 25:
-                    result = await rc.reboot(command.device_number)
-                    if result:
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
+                            {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 12:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='lockedopenoff')
+                    if cmd['rSuccess']:
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
                         tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                            {'uid': str(uid), 'operation': 'close barrier', 'request': command.dict()}), datetime.now()])
-                        return Response(json.dumps(command, default=str), status_code=200, media_type='application/json', background=tasks)
+                            {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
-                        command.error = 1
-                        return JSONResponse(command, status_code=200, media_type='application/json')
-            except Exception as e:
-                tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
-                tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                    {'uid': str(uid), 'error': repr(e), 'request': command.dict()}), datetime.now()])
-                return Response(json.dumps({'error': 'INTERNAL ERROR'}), status_code=500, media_type='application/json')
-        except KeyError as e:
-            tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(command.command_number).name, "request": json.dumps(command.dict())})
-            tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
-                {'uid': str(uid), 'error': repr(e), 'request': command.dict()}), datetime.now()])
-            return Response(json.dumps({'error': 'BAD REQUEST', 'comment': 'device not found'}), status_code=403, media_type='application/json')
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 15:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='maintenanceon')
+                    if cmd['rSuccess']:
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 18:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='maintenanceoff')
+                    if cmd['rSuccess']:
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 25:
+                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='maintenanceon')
+                    if cmd['rSuccess']:
+                        respnse.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+            except (TransportError, TimeoutError, ClientError):
+                # reconnect to service
+                await rc.soapconnector.connect()
+        else:
+            response.error = 1
+            response.date_event = datetime.now()
+            tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+            tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
+                {'uid': str(uid), 'error': f'Device {command.device_number} not found'}), datetime.now()])
+            request.error = 1
+            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+    except KeyError as e:
+        response.error = 1
+        response.date_event = datetime.now()
+        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "error": repr(e)})
+        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
+            {'uid': str(uid), 'error': repr(e), }), datetime.now()])
+        return Response(json.dumps(response.dict(exclude_unset=True)), status_code=503, media_type='application/json', background=tasks)
+    except ValidationError as e:
+        response.error = 1
+        response.date_event = datetime.now()
+        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "error": repr(e)})
+        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
+            {'uid': str(uid), 'error': repr(e)}), datetime.now()])
+        return Response(json.dumps(response.dict(exclude_unset=True)), status_code=503, media_type='application/json', background=tasks)
