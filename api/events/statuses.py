@@ -63,7 +63,7 @@ class StatusListener:
         finally:
             return self
 
-    async def _polling_receiver(self):
+    async def _dispatch(self):
         while True:
             try:
                 data = await self.__amqpconnector_poller.receive()
@@ -72,37 +72,7 @@ class StatusListener:
                 asyncio.ensure_future(self.__logger.error(e))
                 continue
 
-    async def _loops_receiver(self):
-        while True:
-            try:
-                data = await self.__amqpconnector_receiver.receive()
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
-            except Exception as e:
-                asyncio.ensure_future(self.__logger.error(e))
-                continue
-
-    async def _traps_receiver(self):
-        while True:
-            try:
-                data = await self.__amqpconnector_receiver.receive()
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
-            except Exception as e:
-                asyncio.ensure_future(self.__logger.error(e))
-                continue
-
-    async def _dispatch(self):
-        loop1 = asyncio.get_event_loop()
-        loop2 = asyncio.get_event_loop()
-        loop3 = asyncio.get_event_loop()
-        t1 = Thread(name="SNMP Polling Listener", target=loop1.run_until_complete(self._polling_receiver())).start()
-        t1.start()
-        t2 = Thread(name="SNMP Loops Trap Listener", target=loop2.run_until_complete(self._loops_receiver()))
-        t2.start()
-        t3 = Thread(name="SNMP Traps Listener", target=loop2.run_until_complete(self._traps_receiver()))
-        t3.start()
-        await self.__logger.info({"module": self.name, "thread": t1.getName(), "status": t1.is_alive()})
-        await self.__logger.info({"module": self.name, "thread": t2.getName(), "status": t2.is_alive()})
-        await self.__logger.info({"module": self.name, "thread": t3.getName(), "status": t3.is_alive()})
+   
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()

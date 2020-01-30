@@ -1,11 +1,7 @@
-from threading import Thread
-from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
-from configuration import sys_log, wp_cnx, is_cnx, amqp_host, amqp_password, amqp_user
-from aio_pika import connect_robust, Message, ExchangeType, DeliveryMode, IncomingMessage
-import json
-from queue import Queue
-from threading import Thread
+from utils.asynclog import AsyncLogger
+from utils.asyncamqp import AsyncAMQP
+from configuration import wp_cnx, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
 import asyncio
 import datetime
 from dataclasses import dataclass
@@ -13,22 +9,17 @@ from dataclasses import dataclass
 
 @dataclass
 class PlacesListener:
-    def __init__(self, modules_l):
-        self.__amqp_receiver_cnx: object = None
-        self.__amqp_receiver_ch: object = None
-        self.__amqp_recevier_ex: object = None
-        self.__amqp_receiver_q: object = None
+    def __init__(self, devices_l):
         self.__dbconnector_wp: object = None
         self.__dbconnector_is: object = None
+        self.__amqp_connector_t1: object = None
+        self.__amqp_connector_t2: object = None
         self.__logger: object = None
         self.__loop: object = None
-        self.__amqp_sender_status = bool
-        self.__amqp_receiver_status = bool
-        self.__sql_status = bool
         self.name = 'PlacesListener'
-        self.__trap_msg: dict = None
-        self.__cmd_msg: dict = None
-        self.__modules = modules_l
+        self.__trap: object = None
+        self.__cmd: object = None
+        self.__devices = devices_l
 
     @property
     def eventloop(self):
@@ -76,20 +67,23 @@ class PlacesListener:
 
     @property
     def status(self):
-        if self.__sql_status and self.__amqp_receiver_status and self.__amqp_sender_status:
+        if self.__sql_status and self.__amqp_connector.connected:
             return True
         else:
             return False
 
     async def _log_init(self):
         self.__logger = await AsyncLogger().getlogger(sys_log)
-        await self.__logger.info(f'Module {self.name}. Logging initialized')
+        await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
         return self
 
     async def _sql_connect(self):
         try:
+            await self.__logger.info({'module': self.name, 'info': 'Establishing Integration RDBS Pool Connection'})
             self.__dbconnector_is = await AsyncDBPool(conn=is_cnx, loop=self.eventloop).connect()
-            if self.__dbconnector_is.connected:
+            await self.__logger.info({'module': self.name, 'info': 'Establishing Wisepark RDBS Pool Connection'})
+            self.__dbconnector_wp = await AsyncDBPool(conn=wp_cnx, loop=self.eventloop).connect()
+            if self.__dbconnector_is.connected and self.__dbconnector_wp.connected:
                 self.__sql_status = True
             else:
                 self.__sql_status = False
@@ -99,67 +93,45 @@ class PlacesListener:
         finally:
             return self
 
-    async def _receiver_connect(self):
-        try:
-            await self.__logger.info('Establishing RabbitMQ connection')
-            while self.__amqp_receiver_cnx is None:
-                self.__amqp_receiver_cnx = await connect_robust(f"amqp://{amqp_user}:{amqp_password}@{amqp_host}/", loop=self.eventloop)
-            else:
-                self.__amqp_receiver_ch = await self.__amqp_receiver_cnx.channel()
-                # connect to multiple exchanges
-                # 1st exchange consists of queue with SNMP traps from barrier loops
-                self.__amqp_receiver_ex = await self.__amqp_receiver_ch.declare_exchange('statuses', ExchangeType.TOPIC)
-                await self.__amqp_receiver_q.bind(self.__amqp.receiver_ex, routing_key='loop2')
-                await self.__amqp_receiver_q.bind(self.__amqp.receiver_ex, routing_key='cmd')
-                self.__amqp_receiver_status = True
-                asyncio.ensure_future(self.__logger.info(f"RabbitMQ Connection:{self.__amqp_receiver_cnx}"))
-        except Exception as e:
-            self.__amqp_receiver_status = False
-            asyncio.ensure_future(self.__logger.error(e))
-            raise
-        finally:
-            return self
-
-    # callback to consume and store messages
-
-    async def _receiver_on_message(self, message: IncomingMessage):
-        async with message.process(ignore_processed=True, reject_on_redelivered=True):
-            data = json.loads(message.body.decode())
-            if message.info['routing_key'] == 'loop2':
-                self.trap_msg = data
-            elif message.info['routing_key'] == 'cmd':
-                self.cmd_msg = data
-            message.ack()
-
-    async def _amqp_receive(self):
-        async with self.__amqp_receiver_q.iterator() as q:
-            async for message in q:
-                message.ack()
-
-    async def _process(self):
-        if not self.__trap_msg is None and not self.__cmd_msg is None:
-            if (not datetime.now().timestamp() - self.__trap_msg['ts'] > 5
-                and not datetime.now().timestamp() - self.__cmd_msg['ts'] > 5
-                    and -2 < self.__trap_msg['ts'] - self.__cmd_msg['ts'] < 5):
-                if self.__trap_msg['device_type'] == 1:
-                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[None, 1, 1]))
-                elif self.__trap_msg['device_type'] == 2:
-                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[None, -1, 1]))
-                self.__trap_msg = None
-                self.__cmd_msg = None
-        elif not self.__trap_msg is None and self.__cmd_msg is None:
-            if not datetime.now().timestamp() - self.__trap_msg['ts'] > 2:
-                if self.__trap_msg['device_type'] == 1:
-                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[1, None, 1]))
-                elif self.__trap_msg['device_type'] == 2:
-                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[-1, None, 1]))
-                self.__trap_msg = None
+    async def _amqp_connect(self):
+        asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
+        self.__amqp_connector_t1 = await AsyncAMQP(loop=self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host,
+                                                   exchange_name='integration', exchange_type='topic', queue_name='places', binding='status.loop2', priority_queue=True).connect()
+        self.__amqp_connector_t2 = await AsyncAMQP(loop=self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host,
+                                                   exchange_name='integration', exchange_type='topic', queue_name='places', binding='command.physchal.*', priority_queue=True).connect()
+        asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection",
+                                                  "status": True if self.__amqp_connector_1.conncted and self.__amqp_connector_2.connected else False}))
+        return self
 
     async def _dispatch(self):
         while True:
-            await self._amqp_receive()
-            await self._process()
-            await self._distribute()
+            # receive trap message
+            self.trap = await self.__amqp_connector_t1.receive()
+            # receive command message
+            self.cmd = await self.__amqp_connector_t2.receive()
+            if not trap is None and not cmd is None and trap['value'] == 1 and cmd['value'] == 101:
+                area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
+                self.trap = None
+                self.cmd = None
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, 1 if, area]))
+            elif not trap is None and not cmd is None and trap['value'] == 1 and cmd['value'] == 102:
+                area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
+                self.trap = None
+                self.cmd = None
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1 if, area]))
+             elif trap is None and not cmd is None and cmd['value'] == 103:
+                area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
+                self.cmd = None
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1 if, area]))
+            elif trap is None and not cmd is None and cmd['value'] in [101,102]:
+                pass 
+            elif not trap is None and cmd is None and trap['value'] == 1:
+                area = next(d['areaId'] for d in self.__devices if d['terAddress'] == trap['device_id'])
+                self.trap = None
+                if trap['device_type'] == 1:
+                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, 1, area]))
+                elif trap['device_type'] == 2:
+                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transits_upd', [None, -1, area]))
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()

@@ -45,7 +45,8 @@ class AsyncSNMPReceiver:
 
     async def _amqp_connect(self):
         await self.__logger.info({'module': self.name, 'info': 'Establishing AMQP Connection Status'})
-        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic', queue_name='places', priority_queue=True,
+                                               binding=).connect()
         await self.__logger.info({'module': self.name, 'AMQP Connection Status': self.__amqpconnector.connected})
         return self
 
@@ -64,11 +65,11 @@ class AsyncSNMPReceiver:
                     snmp_object.ampp_type = ter_ampp_type
                     snmp_object.device_ip = host
                     if snmp_object.codename == 'BarrierLoop1Status':
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='loop1')
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.loop1', priority=10)
                     elif snmp_object.codename == 'BarrierLoop2Status':
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='loop2')
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.loop2', priority=10)
                     else:
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='trap')
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.trap', priority=9)
         except Exception as e:
             await self.__logger.error(e)
 

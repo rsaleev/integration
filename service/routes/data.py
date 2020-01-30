@@ -7,7 +7,7 @@ import re
 import dateutil.parser as dp
 from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingError
 import configuration as cfg
-import service.settings as ws 
+import service.settings as ws
 
 router = APIRouter()
 

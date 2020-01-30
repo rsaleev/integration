@@ -4,7 +4,7 @@ import json
 import re
 import dateutil.parser as dp
 from starlette.background import BackgroundTask, BackgroundTasks
-import configuration as cfg
+import configuration as ws
 from service import settings as ws
 
 
@@ -43,24 +43,24 @@ async def upd_ticket(ticket, operation):
         try:
             if operation == 'reactivate':
                 if len(ticket) == 11:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, True, False])
+                    tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, True, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, False])
+                    tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             elif operation == 'free':
                 if len(ticket) == 11:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, True, True])
+                    tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, True, True])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, True])
+                    tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, True])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             elif operation == 'deactivate':
                  if len(ticket) == 11:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, False, False])
+                    tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, False, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:
-                    tasks.add_task(cfg.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, False, False])
+                    tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, False, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             else:
                 return Response(json.dumps({'error': 'FORBIDDEN', 'comment': f"Forbidden"}), status_code=403, media_type='application/json', background=task)

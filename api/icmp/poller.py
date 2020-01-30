@@ -104,15 +104,15 @@ class AsyncPingPoller:
             return self.__ampp_type
 
         @property
-        def value_(self):
+        def status(self):
             return self.__value
 
-        @value_.setter
-        def value_(self, value: bool):
+        @value.setter
+        def status(self, value: bool):
             self.__value = value
 
-        @value_.getter
-        def value_(self):
+        @value.getter
+        def value(self):
             if self.__value:
                 return 'ONLINE'
             else:
@@ -143,10 +143,10 @@ class AsyncPingPoller:
 
     async def _log_init(self):
         self.__logger = await AsyncLogger().getlogger(sys_log)
-        await self.__logger.info(f'Module {self.name}. Logging initialized')
+        await self.__logger.info({'module': self.name}, 'info': 'Logging initialized'})
         return self
 
-    async def _ampq_connect(self):
+    async def _amqp_connect(self):
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
         self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic').connect()
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection", "status": self.__amqp_connector.connected}))
@@ -169,14 +169,12 @@ class AsyncPingPoller:
                 ping_object.ampp_id = device['amppId']
                 ping_object.ampp_type = device['amppType']
                 ping_object.ts = datetime.now().timestamp()
-                res = await self.eventloop.run_in_executor(None, self._ping, device['terIp'])
-                ping_object.value_ = res
-                await self.__logger.debug(ping_object.data)
-                asyncio.ensure_future(self.__amqp_connector.send(ping_object.data, persistent=True, key='device_status', priority=1))
+                ping_object.value = await self.eventloop.run_in_executor(None, self._ping, device['terIp'])
+                await self.__amqp_connector.send(ping_object.data, persistent=True, key='status.online', priority=1)
             await asyncio.sleep(snmp_polling)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
         self.eventloop.run_until_complete(self._log_init())
-        self.eventloop.run_until_complete(self._ampq_connect())
+        self.eventloop.run_until_complete(self._amqp_connect())
         self.eventloop.run_until_complete(self._dispatch())

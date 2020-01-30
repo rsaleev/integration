@@ -8,7 +8,7 @@ import asyncio
 from datetime import datetime
 from zeep.exceptions import TransportError, LookupError
 from zeep.exceptions import Error as ClientError
-from service.settings import soapconnector_wp
+from service import settings as ws
 from typing import Optional
 from enum import Enum
 
@@ -16,11 +16,16 @@ from enum import Enum
 router = APIRouter()
 
 
-class RemoteControl:
-
-    def __init__(self):
-        self.devices = list
-        self.soapconnector = soapconnector_wp
+class DeviceStatus():
+    def __init__(self, command_num, device_id, device_ip, device_type, ampp_id, ampp_type, dt):
+        self.codename = 'Command'
+        self.__value: int = command_num
+        self.__device_id: int = None
+        self.__device_ip: str = None
+        self.__device_type: int = None
+        self.__ampp_id: int = None
+        self.__ampp_type: int = None
+        self.__ts = dt
 
 
 class CommandRequest(BaseModel):
@@ -81,15 +86,15 @@ async def rem_control(*, request: CommandRequest):
     tasks = BackgroundTasks()
     response = CommandResponse(**request.dict(exclude_unset=True))
     try:
-        if (request.device_number in [da['amppId'] for da in rc.devices] or request.device_number in [dw['terAddress'] for dw in rc.devices]):
-            tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": json.dumps(request.dict(exclude_unset=True))})
-            tasks.add_task(tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+        if (request.device_number in [da['amppId'] for da in ws.devices] or request.device_number in [dw['terAddress'] for dw in ws.devices]):
+            tasks.add_task(ws).logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": json.dumps(request.dict(exclude_unset=True))})
+            tasks.add_task(tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}), datetime.now()]))
             # define device id for request
-            rc.deviceid = next([d['terAddress'] for d in self.__devices if ['amppId'] == device_id], request.device_number)
+            ws.deviceid = next([d['terAddress'] for d in self.__devices if ['amppId'] == device_id], request.device_number)
             try:
                 if request.command_number == 3:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='open')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='open')
                     if cmd['rSuccess']:
                         response.date_event = datetime.now()
                         tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
@@ -100,135 +105,135 @@ async def rem_control(*, request: CommandRequest):
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                 elif request.command_number == 6:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='close')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='close')
                     if cmd['rSuccess']:
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation":  CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation":  CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                 elif request.command_number == 9:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='lockedopen')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='lockedopen')
                     if cmd['rSuccess']:
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                 elif request.command_number == 12:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='lockedopenoff')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='lockedopenoff')
                     if cmd['rSuccess']:
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                 elif request.command_number == 15:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='maintenanceon')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='maintenanceon')
                     if cmd['rSuccess']:
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                 elif request.command_number == 18:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='maintenanceoff')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='maintenanceoff')
                     if cmd['rSuccess']:
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                 elif request.command_number == 25:
-                    cmd = await rc.soapconnector.client.SetDeviceStatusHeader(sHeader=rc.header, sStatus='maintenanceon')
+                    cmd = await ws.soapconnector.client.SetDeviceStatusHeader(sHeader=ws.header, sStatus='maintenanceon')
                     if cmd['rSuccess']:
                         respnse.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
                         response.date_event = datetime.now()
-                        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                             request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-                        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
             except (TransportError, TimeoutError, ClientError):
                 # reconnect to service
-                await rc.soapconnector.connect()
+                await ws.soapconnector.connect()
         else:
             response.error = 1
             response.date_event = datetime.now()
-            tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
-            tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
+            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True))})
+            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
                 {'uid': str(uid), 'error': f'Device {command.device_number} not found'}), datetime.now()])
             request.error = 1
             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
     except KeyError as e:
         response.error = 1
         response.date_event = datetime.now()
-        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "error": repr(e)})
-        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
+        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "error": repr(e)})
+        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
             {'uid': str(uid), 'error': repr(e), }), datetime.now()])
         return Response(json.dumps(response.dict(exclude_unset=True)), status_code=503, media_type='application/json', background=tasks)
     except ValidationError as e:
         response.error = 1
         response.date_event = datetime.now()
-        tasks.add_task(app.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "error": repr(e)})
-        tasks.add_task(dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
+        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "error": repr(e)})
+        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
             {'uid': str(uid), 'error': repr(e)}), datetime.now()])
         return Response(json.dumps(response.dict(exclude_unset=True)), status_code=503, media_type='application/json', background=tasks)
