@@ -9,7 +9,7 @@ from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingErro
 from pystemd.systemd1 import Unit
 from pystemd.exceptions import PystemdRunError
 from pystemd.dbusexc import DBusFileNotFoundError
-
+from starlette.background import BackgroundTasks
 
 router = APIRouter()
 
@@ -47,6 +47,7 @@ async def get_service(service_name):
 
 @router.get('/rest/monitoring/services/{service_name}/{operation}')
 async def upd_services(service_name, operation):
+    tasks = BackgroundTasks()
     try:
         unit = Unit(f"{service_name}.service".encode())
         unit.load()
@@ -64,6 +65,6 @@ async def upd_services(service_name, operation):
             pid = unit.Service.MainPID
             return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
         else:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': f"{operation} is not supported"}), status_code=403, media_type='application/json')
+            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not supported'}), status_code=403, media_type='application/json')
     except DBusFileNotFoundError:
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=403, media_type='application/json')

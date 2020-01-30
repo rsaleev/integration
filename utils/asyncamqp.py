@@ -6,7 +6,7 @@ import asyncio
 
 
 class AsyncAMQP:
-    def __init__(self, loop: str, user: str, password: str, host: str, exchange_name: str, exchange_type: str, queue_name=None, priority_queue=None, binding=None):
+    def __init__(self, loop: str, user: str, password: str, host: str, exchange_name: str, exchange_type: str):
         self.__loop = loop
         self.__cnx = None
         self.__ch = None
@@ -17,9 +17,6 @@ class AsyncAMQP:
         self.__host = host
         self.__exchange_name = exchange_name
         self.__exchange_type = exchange_type
-        self.__queue_name = queue_name
-        self.__priority_queue = priority_queue
-        self.__queue_bind = binding
         self.connected = bool
 
     async def connect(self):
@@ -29,7 +26,6 @@ class AsyncAMQP:
             except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
                 continue
         else:
-            self.connected = True
             self.__ch = await self.__cnx.channel()
             if self.__exchange_type == 'fanout':
                 self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.FANOUT)
@@ -37,19 +33,27 @@ class AsyncAMQP:
                 self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.TOPIC)
             elif self.__exchange_type == 'direct':
                 self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.DIRECT)
-            if not self.__queue_name is None:
-                self.__q = await self.__ch.declare_queue(self.__queue_name, durable=True, arguments={'x-max-priority': 10})
-                await self.__q.bind(self.__ex, routing_key=self.__queue_bind)
+            self.connected = True
             return self
 
-    async def send(self, data: object, persistent: bool, key: str, priority: int):
+    async def bind(self, queue_name: str, bindings: list):
         try:
-            if persistent:
-                await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.PERSISTENT, priority=priority), routing_key=key)
-            else:
-                await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.NOT_PERSISTENT, priority=priority), routing_key=key)
+            self.__q = await self.__ch.declare_queue(queue_name, durable=True, arguments={'x-max-priority': 10})
+            for b in bindings:
+                await self.__q.bind(self.__ex, routing_key=b)
+            return self
         except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError):
             await self.connect()
+
+    async def send(self, data: object, persistent: bool, keys: list, priority: int):
+        for k in keys:
+            try:
+                if persistent:
+                    await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.PERSISTENT, priority=priority), routing_key=k)
+                else:
+                    await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.NOT_PERSISTENT, priority=priority), routing_key=k)
+            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError):
+                await self.connect()
 
     async def receive(self):
         try:

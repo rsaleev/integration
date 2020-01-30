@@ -4,7 +4,7 @@ import json
 from multiprocessing import Process
 from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
-from configuration import sys_log, wp_cnx, is_cnx, device_mapping, ampp_parking_id, sys_log, physically_challenged_total, rdbs_polling_from, server_ip
+import configuration as cfg
 from api.snmp.poller import AsyncSNMPPoller
 from api.snmp.receiver import AsyncSNMPReceiver
 from api.events.statuses import StatusListener
@@ -30,95 +30,95 @@ class Application:
         self.name = 'application'
 
     async def log_init(self):
-        self.logger = await AsyncLogger().getlogger(sys_log)
+        self.logger = await AsyncLogger().getlogger(cfg.log)
         await self.logger.debug('Logging initialiazed')
         return self.logger
 
     async def db_init(self):
         await self.logger.info("Establishing RDBS Wisepark Pool Connection...")
-        dbconnector_wp = await AsyncDBPool(conn=wp_cnx, loop=self.eventloop).connect()
+        dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=self.eventloop).connect()
         await self.logger.info(f"RDBS Integration Connection: {dbconnector_wp.connected}")
         await self.logger.info("Establishing RDBS Integration Pool Connection...")
-        self.dbconnector_is = await AsyncDBPool(conn=is_cnx, loop=self.eventloop).connect()
+        self.dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
         await self.logger.info(f"RDBS Integration Connection: {self.dbconnector_is.connected}")
         await self.logger.info(f"Reading device mapping file")
-        with open(device_mapping) as f:
+        with open(cfg.device_mapping) as f:
             mapping = json.load(f)
         # get enabled devices except OCR cameras
         if dbconnector_wp.connected and self.dbconnector_is.connected:
             wp_devices = await dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
-            ampp_id_mask = ampp_parking_id * 100
+            ampp_id_mask = cfg.ampp_parking_id * 100
             asyncio.ensure_future(self.dbconnector_is.callproc('is_clear', rows=0, values=[]))
-            try:
-                asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
-                                                                   values=[0, 0, 0, 'server', ampp_id_mask+next(dm['ampp_id'] for dm in mapping['devices'] if dm['ter_id'] == 0),
-                                                                           next(dm['ampp_type'] for dm in mapping['devices'] if dm['ter_id'] == 0), 1, server_ip,
-                                                                           None, None, None, None, None, None, None]))
+            # try:
+            asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
+                                                               values=[0, 0, 0, 'server', ampp_id_mask+next(dm['ampp_id'] for dm in mapping['devices'] if dm['ter_id'] == 0),
+                                                                       next(dm['ampp_type'] for dm in mapping['devices'] if dm['ter_id'] == 0), 1, cfg.server_ip,
+                                                                       None, None, None, None, None, None, None]))
 
-                for device in wp_devices:
-                    if device['terType'] == 1:
-                        # create a record in IS DB table wp_devices
-                        asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
-                                                                           values=[device['terId'], device['terAddress'], device['terType'], device['terDescription'],
-                                                                                   ampp_id_mask+next((dm.get('ampp_id') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
-                                                                                   next((dm.get('ampp_type') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
-                                                                                   device['terIdArea'], device['terIPV4'], device['terCamPlate1'], device['terCamPlate2'], device['terCamPhoto1'],
-                                                                                   device['terCamPhoto2'], None, None, None,
-                                                                                   ]))
+            for device in wp_devices:
+                if device['terType'] == 1:
+                    # create a record in IS DB table wp_devices
+                    asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
+                                                                       values=[device['terId'], device['terAddress'], device['terType'], device['terDescription'],
+                                                                               ampp_id_mask+next((dm.get('ampp_id') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
+                                                                               next((dm.get('ampp_type') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
+                                                                               device['terIdArea'], device['terIPV4'], device['terCamPlate1'], device['terCamPlate2'], device['terCamPhoto1'],
+                                                                               device['terCamPhoto2'], None, None, None,
+                                                                               ]))
 
-                    elif device['terType'] == 2:
-                        # create a record in IS DB table wp_devices
-                        asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
-                                                                           values=[device['terId'], device['terAddress'], device['terType'], device['terDescription'],
-                                                                                   ampp_id_mask+next((dm.get('ampp_id') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
-                                                                                   next((dm.get('ampp_type') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
-                                                                                   device['terIdArea'], device['terIPV4'], device['terCamPlate1'], device['terCamPlate2'], device['terCamPhoto1'],
-                                                                                   device['terCamPhoto2'], None, None, None,
-                                                                                   ]))
-                    elif device['terType'] == 3:
-                        # create a record in IS DB table wp_devices
-                        asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
-                                                                           values=[device['terId'], device['terAddress'], device['terType'], device['terDescription'],
-                                                                                   ampp_id_mask+next((dm['ampp_id'] for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
-                                                                                   next((dm['ampp_type'] for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),  device['terIdArea'],
-                                                                                   device['terIPV4'], None, None, None, None,
-                                                                                   next((dm.get('imager') for dm in mapping['devices'] if dm['ter_id'] == device['terId']), 0),
-                                                                                   next((dm.get('payonline') for dm in mapping['devices'] if dm['ter_id'] == device['terId']), 0),
-                                                                                   next((dm.get('uniteller') for dm in mapping['devices'] if dm['ter_id'] == device['terId']), 0)
-                                                                                   ]))
-                self.devices = await self.dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
-                for d in self.devices:
-                    if d['terType'] == 0:
-                        for codename in mapping['statuses']['server']:
-                            await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                               values=[0, 0, d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
-                    elif d['terType'] == 1:
-                        for codename in mapping['statuses']['entry']:
-                            await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                               values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
-                    elif d['terType'] == 2:
-                        for codename in mapping['statuses']['exit']:
-                            await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                               values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
-                    elif d['terType'] == 3:
-                        for codename in mapping['statuses']['autocash']:
-                            await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                               values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
-                # create record in DB table
-                asyncio.ensure_future(self.logger.info(f"Discovered devices:{[device for device in self.devices]}"))
-                # initialize places
-                places = await dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
-                # create record in DB tables
-                for p in places:
-                    asyncio.ensure_future(self.dbconnector_is.callproc('is_places_ins', rows=0, values=[
-                                          p['areTotalPark'], p['areFreePark'], physically_challenged_total, p['areFloor'], p['areNumber'], p['areDescription']]))
-                await self.logger.info(f"Discovered places:{[pl for pl in places]}")
-                dbconnector_wp.pool.terminate()
-                await dbconnector_wp.pool.wait_closed()
-                return self
-            except Exception as e:
-                await self.logger.error({'module': self.name, 'error': repr(e)})
-                raise SystemExit
+                elif device['terType'] == 2:
+                    # create a record in IS DB table wp_devices
+                    asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
+                                                                       values=[device['terId'], device['terAddress'], device['terType'], device['terDescription'],
+                                                                               ampp_id_mask+next((dm.get('ampp_id') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
+                                                                               next((dm.get('ampp_type') for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
+                                                                               device['terIdArea'], device['terIPV4'], device['terCamPlate1'], device['terCamPlate2'], device['terCamPhoto1'],
+                                                                               device['terCamPhoto2'], None, None, None,
+                                                                               ]))
+                elif device['terType'] == 3:
+                    # create a record in IS DB table wp_devices
+                    asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
+                                                                       values=[device['terId'], device['terAddress'], device['terType'], device['terDescription'],
+                                                                               ampp_id_mask+next((dm['ampp_id'] for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),
+                                                                               next((dm['ampp_type'] for dm in mapping['devices'] if device['terId'] == dm['ter_id']), 0),  device['terIdArea'],
+                                                                               device['terIPV4'], None, None, None, None,
+                                                                               next((dm.get('imager') for dm in mapping['devices'] if dm['ter_id'] == device['terId']), 0),
+                                                                               next((dm.get('payonline') for dm in mapping['devices'] if dm['ter_id'] == device['terId']), 0),
+                                                                               next((dm.get('uniteller') for dm in mapping['devices'] if dm['ter_id'] == device['terId']), 0)
+                                                                               ]))
+            self.devices = await self.dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
+            for d in self.devices:
+                if d['terType'] == 0:
+                    for codename in mapping['statuses']['server']:
+                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                           values=[0, 0, d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+                elif d['terType'] == 1:
+                    for codename in mapping['statuses']['entry']:
+                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                           values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+                elif d['terType'] == 2:
+                    for codename in mapping['statuses']['exit']:
+                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                           values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+                elif d['terType'] == 3:
+                    for codename in mapping['statuses']['autocash']:
+                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                           values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+            # create record in DB table
+            await self.logger.info(f"Discovered devices:{[device for device in self.devices]}")
+            # initialize places
+            places = await dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+            print(places)
+            # create record in DB tables
+            for p in places:
+                await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'],
+                                                                                    cfg.physically_challenged_total])
+            await self.logger.info(f"Discovered places:{[pl for pl in places]}")
+            dbconnector_wp.pool.terminate()
+            await dbconnector_wp.pool.wait_closed()
+            return self
+            # except Exception as e:
+            #     await self.logger.error({'module': self.name, 'error': repr(e)})
 
     """
     initializes processes with type 'fork' (native for *NIX)
@@ -166,14 +166,11 @@ class Application:
 
 
 if __name__ == '__main__':
+
     loop = asyncio.get_event_loop()
     app = Application(loop)
-    try:
-        loop.run_until_complete(app.log_init())
-        loop.run_until_complete(app.db_init())
-        loop.run_until_complete(app.proc_init())
-        loop.run_until_complete(app.start())
-        loop.run_until_complete(app.check())
-    except SystemExit:
-        app.stop()
-        loop.close()
+    loop.run_until_complete(app.log_init())
+    loop.run_until_complete(app.db_init())
+    loop.run_until_complete(app.proc_init())
+    loop.run_until_complete(app.start())
+    loop.run_until_complete(app.check())

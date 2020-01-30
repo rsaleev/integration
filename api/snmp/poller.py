@@ -6,7 +6,7 @@ from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncamqp import AsyncAMQP
 import json
-from configuration import snmp_retries, snmp_timeout, snmp_polling, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
+import configuration as cfg
 from .mibs import polling_mibs
 import signal
 
@@ -37,19 +37,19 @@ class AsyncSNMPPoller:
         return self.__eventloop
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(sys_log)
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({"module": self.name, "info": "Logging initialized"})
         return self.__logger
 
     # Connect and create exchange for SNMP Poller and SNMP Receiver messages
     async def _amqp_connect(self):
-        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
         return self.__amqpconnector
 
     async def _dispatch(self):
         while True:
             for device in self.__devices:
-                with aiosnmp.Snmp(host=device['terIp'], port=161, community="public", timeout=snmp_timeout, retries=snmp_retries) as snmp:
+                with aiosnmp.Snmp(host=device['terIp'], port=161, community="public", timeout=cfg.snmp_timeout, retries=cfg.snmp_retries) as snmp:
                     try:
                         for res in await snmp.get([mib.oid for mib in polling_mibs]):
                             snmp_object = next((mib for mib in polling_mibs if mib.oid == res.oid), None)
@@ -77,7 +77,7 @@ class AsyncSNMPPoller:
                         asyncio.ensure_future(self.__logger.error({"module": self.name, "exception": repr(e)}))
                         await asyncio.sleep(0.1)
                         pass
-            await asyncio.sleep(snmp_polling)
+            await asyncio.sleep(cfg.snmp_polling)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()

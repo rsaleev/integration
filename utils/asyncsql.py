@@ -25,17 +25,14 @@ class AsyncDBPool():
         while self.pool is None:
             try:
                 self.pool = await aiomysql.create_pool(**self.conn, loop=self.loop, autocommit=True)
-                if not self.pool is None:
-                    self.connected = True
+                self.connected = True
+                return self
             except aiomysql.OperationalError as e:
                 code, description = e.args
                 if code == 2003 or 1053:
-                    await asyncio.sleep(1)
-                    continue
-                else:
+                    await asyncio.sleep(0.5)
                     raise e
-            else:
-                return self
+                    continue
 
     async def callproc(self, procedure: str,  rows: int, values: list = None):
         try:

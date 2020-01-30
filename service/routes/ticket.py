@@ -56,7 +56,7 @@ async def upd_ticket(ticket, operation):
                     tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, True, True])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             elif operation == 'deactivate':
-                 if len(ticket) == 11:
+                if len(ticket) == 11:
                     tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[None, ticket, False, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
                 elif len(ticket) == 24:

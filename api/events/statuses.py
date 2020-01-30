@@ -5,18 +5,15 @@ from dataclasses import dataclass
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
-from configuration import wp_cnx, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
+import configuration as cfg
 import json
-from threading import Thread
 
 
 class StatusListener:
 
     def __init__(self):
         self.__dbconnector_is: object = None
-        self.__amqpconnector_poller: object = None
-        self.__amqpconnector_loops: object = None
-        self.__amqpconnector_traps: object = None
+        self.__amqpconnector: object = None
         self.__logger: object = None
         self.__loop: object = None
         self.__amqp_receiver_status = bool
@@ -30,21 +27,14 @@ class StatusListener:
             return False
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(sys_log)
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({"module": self.name, "info": "Logging initialized"})
         return self
 
     async def _amqp_connect(self):
         await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
-        self.__amqpconnector = await AsyncAMQP(loop=self.eventloop,
-                                               user=amqp_user,
-                                               password=amqp_password,
-                                               host=amqp_host,
-                                               exchange_name='integration',
-                                               exchange_type='topic',
-                                               queue_name='statuses',
-                                               priority_queue=True,
-                                               binding='#').connect()
+        self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        await self.__amqpconnector.bind('statuses', ['#'])
         asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'AMQP Connection',
                                                   'status': self.__amqpconnector.connected}))
         return self
@@ -66,13 +56,11 @@ class StatusListener:
     async def _dispatch(self):
         while True:
             try:
-                data = await self.__amqpconnector_poller.receive()
+                data = await self.__amqpconnector.receive()
                 asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
             except Exception as e:
                 asyncio.ensure_future(self.__logger.error(e))
                 continue
-
-   
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()

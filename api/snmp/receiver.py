@@ -3,7 +3,7 @@ import asyncio
 import aiosnmp
 from datetime import datetime
 import json
-from configuration import snmp_trap_host, snmp_trap_port, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
+import configuration as cfg
 from .mibs import receiving_mibs
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
@@ -39,14 +39,13 @@ class AsyncSNMPReceiver:
         return self.__name
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(sys_log)
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info(f'Module {self.name}. Logging initialized')
         return self
 
     async def _amqp_connect(self):
         await self.__logger.info({'module': self.name, 'info': 'Establishing AMQP Connection Status'})
-        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic', queue_name='places', priority_queue=True,
-                                               binding=).connect()
+        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
         await self.__logger.info({'module': self.name, 'AMQP Connection Status': self.__amqpconnector.connected})
         return self
 
@@ -75,7 +74,7 @@ class AsyncSNMPReceiver:
 
     async def _dispatch(self):
         await self.__logger.info({self.name: self.status})
-        trap_listener = aiosnmp.SnmpV2TrapServer(host=snmp_trap_host, port=snmp_trap_port, communities=("public",), handler=self._handler)
+        trap_listener = aiosnmp.SnmpV2TrapServer(host=cfg.snmp_trap_host, port=cfg.snmp_trap_port, communities=("public",), handler=self._handler)
         await trap_listener.run()
 
     def run(self):

@@ -16,7 +16,7 @@ router = APIRouter()
 name = 'webservice_statuses'
 
 
-@route('/rest/monitoring/statuses')
+@router.get('/rest/monitoring/statuses')
 async def get_devices_status():
     tasks = BackgroundTasks()
     try:
@@ -27,7 +27,7 @@ async def get_devices_status():
         return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Internal error'}, default=str), status_code=500, media_type='application/json', background=tasks)
 
 
-@route('/rest/monitoring/statuses/{device_id}')
+@router.get('/rest/monitoring/statuses/{device_id}')
 async def get_device_status(device_id):
     tasks = BackgroundTasks()
     try:
@@ -38,10 +38,10 @@ async def get_device_status(device_id):
         return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Internal error'}, default=str), status_code=500, media_type='application/json', background=tasks)
 
 
-@route('/rest/monitoring/statuses/{device_id}/{stcodename}')
+@router.get('/rest/monitoring/statuses/{device_id}/{stcodename}')
 async def get_device_stcodename(device_id, stcodename):
     tasks = BackgroundTasks()
-   try:
+    try:
         data = await ws.dbconnector_is.callproc('is_status_get', rows=-1, values=[device_id, stcodename])
         return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
     except (DatabaseError, DataError, OperationalError, ProgrammingError, InternalError, IntegrityError) as e:
@@ -49,12 +49,12 @@ async def get_device_stcodename(device_id, stcodename):
         return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Internal error'}, default=str), status_code=500, media_type='application/json', background=tasks)
 
 
-@route('/rest/monitoring/statuses/{stcodename}')
+@router.get('/rest/monitoring/statuses/{stcodename}')
 async def get_device_stcodename(stcodename):
     tasks = BackgroundTasks()
-    try:
-        data = await ws.dbconnector_is.callproc('is_status_get', rows=-1, values=[None, stcodename])
-        return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
-    except (DatabaseError, DataError, OperationalError, ProgrammingError, InternalError, IntegrityError) as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'path': f'rest/monitoring/statuses/{stcodename}', 'error': repr(e)})
-        return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Internal error'}, default=str), status_code=500, media_type='application/json', background=tasks)
+    # try:
+    data = await ws.dbconnector_is.callproc('is_status_get', rows=-1, values=[None, stcodename])
+    return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
+    # except (DatabaseError, DataError, OperationalError, ProgrammingError, InternalError, IntegrityError) as e:
+    #     tasks.add_task(ws.logger.error, {'module': name, 'path': f'rest/monitoring/statuses/{stcodename}', 'error': repr(e)})
+    #     return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Internal error'}, default=str), status_code=500, media_type='application/json', background=tasks)

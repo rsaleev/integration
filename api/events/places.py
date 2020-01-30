@@ -1,7 +1,7 @@
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
-from configuration import wp_cnx, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
+import configuration as cfg
 import asyncio
 import datetime
 from dataclasses import dataclass
@@ -73,7 +73,7 @@ class PlacesListener:
             return False
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(sys_log)
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
         return self
 
@@ -95,10 +95,9 @@ class PlacesListener:
 
     async def _amqp_connect(self):
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
-        self.__amqp_connector_t1 = await AsyncAMQP(loop=self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host,
-                                                   exchange_name='integration', exchange_type='topic', queue_name='places', binding='status.loop2', priority_queue=True).connect()
-        self.__amqp_connector_t2 = await AsyncAMQP(loop=self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host,
-                                                   exchange_name='integration', exchange_type='topic', queue_name='places', binding='command.physchal.*', priority_queue=True).connect()
+        self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
+                                                exchange_name='integration', exchange_type='topic').connect()
+        await self.__amqp_connector.bind('places', ['command.phychal.*', 'status.loop2'])
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection",
                                                   "status": True if self.__amqp_connector_1.conncted and self.__amqp_connector_2.connected else False}))
         return self
@@ -113,18 +112,18 @@ class PlacesListener:
                 area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
                 self.trap = None
                 self.cmd = None
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, 1 if, area]))
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, 1, area]))
             elif not trap is None and not cmd is None and trap['value'] == 1 and cmd['value'] == 102:
                 area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
                 self.trap = None
                 self.cmd = None
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1 if, area]))
-             elif trap is None and not cmd is None and cmd['value'] == 103:
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1, area]))
+            elif trap is None and not cmd is None and cmd['value'] == 103:
                 area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
                 self.cmd = None
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1 if, area]))
-            elif trap is None and not cmd is None and cmd['value'] in [101,102]:
-                pass 
+                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1, area]))
+            elif trap is None and not cmd is None and cmd['value'] in [101, 102]:
+                pass
             elif not trap is None and cmd is None and trap['value'] == 1:
                 area = next(d['areaId'] for d in self.__devices if d['terAddress'] == trap['device_id'])
                 self.trap = None

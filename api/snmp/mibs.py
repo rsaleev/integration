@@ -161,7 +161,6 @@ receiving_mibs = [
     SNMPObject('NotesEscrow', '.1.3.6.1.4.1.40383.1.2.2.116', forced_value='JAMMED_NOTE').instance,
     SNMPObject('PaymentStatus', '.1.3.6.1.4.1.40383.1.2.3.3').instance,
     SNMPObject('PaymentMoneyType', '.1.3.6.1.4.1.40383.1.2.3.1', status_map=PaymentType).instance,
-    SNMPObject('PaymentStatus', '.1.3.6.1.4.1.40383.1.2.3.3').instance,
     SNMPObject('PaymentCardType', '.1.3.6.1.4.1.40383.1.2.3.2', status_map=PaymentCardType).instance,
     SNMPObject('PaymentAmount', '.1.3.6.1.4.1.40383.1.2.3.5').instance
 ]

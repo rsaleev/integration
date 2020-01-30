@@ -87,9 +87,9 @@ async def rem_control(*, request: CommandRequest):
     response = CommandResponse(**request.dict(exclude_unset=True))
     try:
         if (request.device_number in [da['amppId'] for da in ws.devices] or request.device_number in [dw['terAddress'] for dw in ws.devices]):
-            tasks.add_task(ws).logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": json.dumps(request.dict(exclude_unset=True))})
+            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": json.dumps(request.dict(exclude_unset=True))})
             tasks.add_task(tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}), datetime.now()]))
+                                                                                                    json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}), datetime.now()]))
             # define device id for request
             ws.deviceid = next([d['terAddress'] for d in self.__devices if ['amppId'] == device_id], request.device_number)
             try:

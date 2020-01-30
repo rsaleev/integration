@@ -1,4 +1,4 @@
-from configuration import amqp_host, amqp_password, amqp_user, sys_log, snmp_polling
+import configuration as cfg
 import json
 import asyncio
 import os
@@ -104,11 +104,11 @@ class AsyncPingPoller:
             return self.__ampp_type
 
         @property
-        def status(self):
+        def value(self):
             return self.__value
 
         @value.setter
-        def status(self, value: bool):
+        def value(self, v: bool):
             self.__value = value
 
         @value.getter
@@ -135,20 +135,20 @@ class AsyncPingPoller:
             return {'device_id': self.device_id,
                     'device_type': self.device_type,
                     'codename': self.codename,
-                    'value': self.value_,
+                    'value': self.value,
                     'ts': self.ts,
                     'ampp_id': self.ampp_id,
                     'ampp_type': self.ampp_type,
                     'device_ip': self.device_ip}
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(sys_log)
-        await self.__logger.info({'module': self.name}, 'info': 'Logging initialized'})
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
         return self
 
     async def _amqp_connect(self):
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
-        self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=amqp_user, password=amqp_password, host=amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection", "status": self.__amqp_connector.connected}))
         return self.__amqp_connector
 
@@ -169,9 +169,9 @@ class AsyncPingPoller:
                 ping_object.ampp_id = device['amppId']
                 ping_object.ampp_type = device['amppType']
                 ping_object.ts = datetime.now().timestamp()
-                ping_object.value = await self.eventloop.run_in_executor(None, self._ping, device['terIp'])
-                await self.__amqp_connector.send(ping_object.data, persistent=True, key='status.online', priority=1)
-            await asyncio.sleep(snmp_polling)
+                status = await self.eventloop.run_in_executor(None, self._ping, device['terIp'])
+                await self.__amqp_connector.send(ping_object.data, persistent=True, keys=['status.online'], priority=1)
+            await asyncio.sleep(cfg.snmp_polling)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
