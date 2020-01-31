@@ -63,6 +63,7 @@ class AsyncSNMPReceiver:
                     snmp_object.ampp_id = ter_ampp_id
                     snmp_object.ampp_type = ter_ampp_type
                     snmp_object.device_ip = host
+                    await self.__logger.info(snmp_object.data)
                     if snmp_object.codename == 'BarrierLoop1Status':
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.loop1', priority=10)
                     elif snmp_object.codename == 'BarrierLoop2Status':

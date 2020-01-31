@@ -45,7 +45,7 @@ async def startup():
     await ws.logger.info({'module': name, 'info': 'Wisepark RDBS Pool Connection', 'status': ws.dbconnector_wp.connected})
     ws.devices = await ws.dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
     await ws.logger.info({'module': name, 'info': "Establishing SOAP Service Connection"})
-    # await ws.soapconnector.connect()
+    await ws.soapconnector.connect()
     await ws.logger.info({'module': name, 'info': 'Wisepark Soap Connection', 'status': ws.soapconnector_wp.connected})
     await ws.logger.info({'module': name, 'info': "Establishing AMQP Connection"})
     await ws.amqpconnector.connect()

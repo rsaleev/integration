@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import asyncio
 from pathlib import Path
 import json
@@ -127,23 +129,22 @@ class Application:
         # statuses listener process
         statuses_listener = StatusListener()
         statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
-        self.processes.append(statuses_listener_proc)
+        # self.processes.append(statuses_listener_proc)
         # ping poller process
         icmp_poller = AsyncPingPoller(self.devices)
         icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
-        self.processes.append(icmp_poller_proc)
+        # self.processes.append(icmp_poller_proc)
         # SNMP poller process
         snmp_poller = AsyncSNMPPoller(self.devices)
         snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
-        self.processes.append(snmp_poller_proc)
+        # self.processes.append(snmp_poller_proc)
         # SNMP receiver process
         snmp_receiver = AsyncSNMPReceiver(self.devices)
         snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
         self.processes.append(snmp_receiver_proc)
         # Webservice
         asgi_service_proc = Process(target=webservice.run, name=webservice.name)
-        self.processes.append(asgi_service_proc)
-
+        # self.processes.append(asgi_service_proc)
         return self
 
     async def start(self):
@@ -170,7 +171,8 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     app = Application(loop)
     loop.run_until_complete(app.log_init())
-    loop.run_until_complete(app.db_init())
+    # loop.run_until_complete(app.db_init())
     loop.run_until_complete(app.proc_init())
     loop.run_until_complete(app.start())
-    loop.run_until_complete(app.check())
+    loop.run_forever()
+    # loop.run_until_complete(app.check())
