@@ -30,8 +30,9 @@ class AsyncDBPool():
             except aiomysql.OperationalError as e:
                 code, description = e.args
                 if code == 2003 or 1053:
-                    await asyncio.sleep(0.5)
                     raise e
+                    await asyncio.sleep(0.5)
+
                     continue
 
     async def callproc(self, procedure: str,  rows: int, values: list = None):

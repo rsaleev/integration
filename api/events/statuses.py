@@ -41,7 +41,7 @@ class StatusListener:
 
     async def _sql_connect(self):
         try:
-            self.__dbconnector_is = await AsyncDBPool(conn=is_cnx, loop=self.eventloop).connect()
+            self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
             if self.__dbconnector_is.connected:
                 self.__sql_status = True
             else:
@@ -60,6 +60,7 @@ class StatusListener:
                 asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
             except Exception as e:
                 asyncio.ensure_future(self.__logger.error(e))
+                asyncio.sleep(0.1)
                 continue
 
     def run(self):

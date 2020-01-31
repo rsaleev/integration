@@ -72,6 +72,7 @@ class AsyncSNMPReceiver:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.trap', priority=9)
         except Exception as e:
             await self.__logger.error(e)
+            await asyncio.sleep(0.2)
 
     async def _dispatch(self):
         await self.__logger.info({self.name: self.status})
