@@ -51,25 +51,24 @@ class AsyncSNMPReceiver:
 
     async def _handler(self, host: str, port: int, message: aiosnmp.SnmpV2TrapMessage):
         try:
-            oid, value = next(((trap.oid, trap.value) for trap in message.data.varbinds), (None, None))
-            if not oid is None:
-                ter_id, ter_type, ter_ip, ter_ampp_id, ter_ampp_type = next(((device['terId'], device['terType'], device['terIp'], device['amppId'],
-                                                                              device['amppType']) for device in self.__devices if device['terIp'] == host), (None, None, None, None, None))
-                snmp_object = next((mib for mib in receiving_mibs if mib.oid == oid), None)
-                if not snmp_object is None and not ter_id is None:
-                    snmp_object.ts = datetime.now().timestamp()
-                    snmp_object.device_id = ter_id
-                    snmp_object.device_type = ter_type
-                    snmp_object.ampp_id = ter_ampp_id
-                    snmp_object.ampp_type = ter_ampp_type
-                    snmp_object.device_ip = host
-                    await self.__logger.info(snmp_object.data)
-                    if snmp_object.codename == 'BarrierLoop1Status':
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.loop1', priority=10)
-                    elif snmp_object.codename == 'BarrierLoop2Status':
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.loop2', priority=10)
-                    else:
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, key='status.trap', priority=9)
+            oid = message.data.varbinds[1].value
+            val = message.data.varbinds[2].value
+            if host in [d['terIp'] for d in self.__devices] and oid in [m.oid for m in receiving_mibs]:
+                device = next(dev for dev in self.__devices if dev['terIp'] == host)
+                snmp_object = next(mib for mib in receiving_mibs if mib.oid == oid)
+                snmp_object.ts = datetime.now().timestamp()
+                snmp_object.snmpvalue = val
+                snmp_object.device_id = device['terAddress']
+                snmp_object.device_type = device['terType']
+                snmp_object.ampp_id = device['amppId']
+                snmp_object.ampp_type = device['amppType']
+                snmp_object.device_ip = host
+                if snmp_object.codename == 'BarrierLoop1Status':
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=10)
+                elif snmp_object.codename == 'BarrierLoop2Status':
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=10)
+                else:
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=2)
         except Exception as e:
             await self.__logger.error(e)
             await asyncio.sleep(0.2)
@@ -84,3 +83,4 @@ class AsyncSNMPReceiver:
         self.eventloop.run_until_complete(self._log_init())
         self.eventloop.run_until_complete(self._amqp_connect())
         self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_forever()
