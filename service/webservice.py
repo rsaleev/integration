@@ -37,20 +37,11 @@ name = 'remote'
 @app.on_event('startup')
 async def startup():
     ws.logger = await ws.logger.getlogger(cfg.log)
-    await ws.logger.warning({'module': name, 'info': 'Webservice is starting up'})
-    await ws.logger.info({'module': name, 'info': "Establishing RDBS Integration Pool Connection"})
     await ws.dbconnector_is.connect()
-    await ws.logger.info({'module': name, 'info': 'Integration RDBS Pool Connection', 'status': ws.dbconnector_is.connected})
     await ws.dbconnector_wp.connect()
-    await ws.logger.info({'module': name, 'info': 'Wisepark RDBS Pool Connection', 'status': ws.dbconnector_wp.connected})
     ws.devices = await ws.dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
-    await ws.logger.info({'module': name, 'info': "Establishing SOAP Service Connection"})
     await ws.soapconnector.connect()
-    await ws.logger.info({'module': name, 'info': 'Wisepark Soap Connection', 'status': ws.soapconnector_wp.connected})
-    await ws.logger.info({'module': name, 'info': "Establishing AMQP Connection"})
     await ws.amqpconnector.connect()
-    await ws.logger.info({'module': name, 'info': "AMQP Connection", "status": ws.amqpconnector.connected})
-    await ws.logger.warning({'module': name, 'info': 'Startup completed. Ready'})
 
 
 @app.on_event('shutdown')
@@ -65,4 +56,4 @@ async def shutdown():
 
 
 def run():
-    uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level='debug' if cfg.asgi_debug else 'error')
+    uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level='debug')

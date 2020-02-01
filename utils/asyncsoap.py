@@ -22,7 +22,7 @@ class AsyncSOAP:
         while self.__transport is None or self.__client is None:
             try:
                 self.__transport = AsyncTransport(loop=asyncio.get_running_loop(), cache=None, timeout=self.__timeout, operation_timeout=self.__timeout)
-                async with self.__transport.session.get(url) as resp:
+                async with self.__transport.session.get(self.__url) as resp:
                     content = await resp.read()
                     wsdl = io.BytesIO(content)
                     self.__client = Client(wsdl, transport=self.__transport)

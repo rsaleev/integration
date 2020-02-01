@@ -1,6 +1,6 @@
 from fastapi.routing import APIRouter
 import configuration as cfg
-from service import settings as ws
+import service.settings as ws
 from starlette.responses import Response
 from starlette.background import BackgroundTasks
 from pydantic import BaseModel, validator, ValidationError

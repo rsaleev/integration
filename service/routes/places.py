@@ -61,16 +61,14 @@ async def get_places():
 
 @router.post('/rest/monitoring/places')
 async def upd_places(*, places: List[Places]):
-    tasks = BackgroundTasks()
     try:
-        for p in places:
-            try:
-                await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[p.parking_number, p.client_free])
-                await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[p.client_busy, p.vip_client_busy, p.parking_number])
-                return Response(status_code=200)
-            except (ProgrammingError, OperationalError) as e:
-                tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
-                return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Connection refused'}), status_code=404, media_type='application/json', background=tasks)
+        for index, place in enumerate(places):
+            await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, index+2])
+            await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[place.client_free, index+2])
+        return Response(status_code=200)
+    except (ProgrammingError, OperationalError) as e:
+        tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
+        return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Connection refused'}), status_code=404, media_type='application/json', background=tasks)
     except ValidationError as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not valid request'}), status_code=403, media_type='application/json', background=tasks)

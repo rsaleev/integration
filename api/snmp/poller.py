@@ -63,11 +63,13 @@ class AsyncSNMPPoller:
                                 snmp_object.snmpvalue = res.value
                                 await self.__logger.debug(snmp_object.data)
                                 if snmp_object.codename == "BarrierLoop1Status":
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'])
+                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
                                 elif snmp_object.codename == "BarrierLoop2Status":
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, key=['status.loop2'])
+                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
+                                elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice"]:
+                                    await self.__amqconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=3)
                                 else:
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, key=['status.snmp'])
+                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.snmp'], priority=9)
                             await asyncio.sleep(0.2)
                     # handle SNMP exceptions
                     except (SnmpErrorNoSuchName, SnmpErrorResourceUnavailable, ValueError, SnmpTimeoutError) as e:

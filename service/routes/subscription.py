@@ -33,6 +33,22 @@ class Subscription(BaseModel):
     invalid_pass: Optional[str]
 
 
+# def converter(self, code):
+#     if len(code) == 4:
+#         byte_1 = int('8'+code[0:6], 16)
+#         byte_2 = int(code[7:14], 16)
+#         str_repr = '000000000'+str(byte1) + str(byte2)
+#     elif len(code) == 14
+#         byte_1 = int('8'+code[0:6], 16)
+#         byte_2 = int(code[7:14], 16)
+#         if int(code[0:6]) == 0:
+#                 str_repr = '0'+str(byte_1)+'0'+str(byte_2)
+#                 return str_repr
+#             else:
+#                 str_repr = '0'+str(byte_1)+str(byte_2)
+#                 return str_repr
+
+
 @router.get('/rest/monitoring/subscription')
 async def get_subscriptions():
     tasks = BackgroundTasks()
