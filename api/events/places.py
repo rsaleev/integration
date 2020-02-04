@@ -12,6 +12,7 @@ class PlacesListener:
     def __init__(self):
         self.__dbconnector_wp: object = None
         self.__dbconnector_is: object = None
+        self.__amqpconnector: object = None
         self.__logger: object = None
         self.__loop: object = None
         self.name = 'PlacesListener'
@@ -92,15 +93,15 @@ class PlacesListener:
 
     async def _amqp_connect(self):
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
-        self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
-                                                exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqp_connector.bind('places', ['status.loop2'])
+        self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
+                                               exchange_name='integration', exchange_type='topic').connect()
+        await self.__amqpconnector.bind('places', ['status.loop2'])
         return self
 
     async def _dispatch(self):
         while True:
             try:
-                msg = self.__amqp_connector.receive()
+                msg = await self.__amqpconnector.receive()
                 await self.__logger.warning(msg)
                 if msg['codename'] == 'BarrierLoop2Status':
                     self.__trap = msg
@@ -113,15 +114,17 @@ class PlacesListener:
                         asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[1]))
                 elif msg['codename'] == 'OpenBarrier' and self.__cmd['ts'] - int(self.trap['ts']) < 10 and self.__trap['ampp_type'] == self.__cmd['device_type']:
                     asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_commercial_upd', rows=0, values=[1]))
-                elif int(datetime.now()) - self.__trap['ts'] < 10:
+                elif int(datetime.now()) - int(self.__trap['ts']) < 10:
                     places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
                     for p in places:
                         await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, p['areId']])
             except Exception as e:
                 await self.__logger.error({'error': repr(e)})
+                await asyncio.sleep(0.5)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
         self.eventloop.run_until_complete(self._log_init())
         self.eventloop.run_until_complete(self._sql_connect())
+        self.eventloop.run_until_complete(self._amqp_connect())
         self.eventloop.run_until_complete(self._dispatch())
