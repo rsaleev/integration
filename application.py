@@ -51,7 +51,7 @@ class Application:
         # get enabled devices except OCR cameras
         devices = await dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
         ampp_id_mask = cfg.ampp_parking_id * 100
-        asyncio.ensure_future(self.dbconnector_is.callproc('is_clear', rows=0, values=[]))
+        await self.dbconnector_is.callproc('is_clear', rows=0, values=[])
         try:
             asyncio.ensure_future(self.dbconnector_is.callproc('is_devices_ins', rows=0,
                                                                values=[0, 0, 0, 'server', ampp_id_mask+next(dm['ampp_id'] for dm in mapping['devices'] if dm['ter_id'] == 0),
@@ -98,29 +98,26 @@ class Application:
             for d in self.devices:
                 if d['terType'] == 0:
                     for codename in mapping['statuses']['server']:
-                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                           values=[0, 0, d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+                        asyncio.ensure_future(self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                                           values=[0, 0, d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()]))
                 elif d['terType'] == 1:
                     for codename in mapping['statuses']['entry']:
-                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                           values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+                        asyncio.ensure_future(self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                                           values=[d['terAddress'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()]))
                 elif d['terType'] == 2:
                     for codename in mapping['statuses']['exit']:
-                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                           values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
+                        asyncio.ensure_future(self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                                           values=[d['terAddress'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()]))
                 elif d['terType'] == 3:
                     for codename in mapping['statuses']['autocash']:
-                        await self.dbconnector_is.callproc('is_status_ins', rows=0,
-                                                           values=[d['terId'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()])
-            # create record in DB table
-            await self.logger.info(f"Discovered devices:{self.devices}")
+                        asyncio.ensure_future(self.dbconnector_is.callproc('is_status_ins', rows=0,
+                                                                           values=[d['terAddress'], d['terType'], d['amppId'], d['amppType'], codename, '', d['terIp'], datetime.now()]))
             # initialize places
             places = await dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
             # create record in DB tables
             for p in places:
-                await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'],
-                                                                                    cfg.physically_challenged_total])
-            await self.logger.info(f"Discovered places:{[pl for pl in places]}")
+                asyncio.ensure_future(self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'],
+                                                                                                    cfg.physically_challenged_total]))
             dbconnector_wp.pool.terminate()
             await dbconnector_wp.pool.wait_closed()
             return self
@@ -129,6 +126,11 @@ class Application:
         else:
             return self
 
+    async def checker(self):
+        while True:
+            for p in self.processes:
+                asyncio.ensure_future(self.dbconnector_is.callproc('is_processes_ins', rows=0, values=[p.name, p.is_alive(), p.pid]))
+            await asyncio.sleep(10)
     """
     initializes processes with type 'fork' (native for *NIX)
     """
@@ -149,6 +151,10 @@ class Application:
         snmp_receiver = AsyncSNMPReceiver(self.devices)
         snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
         self.processes.append(snmp_receiver_proc)
+        # places listener
+        places_listener = PlacesListener()
+        places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
+        self.processes.append(places_listener_proc)
         # Webservice
         asgi_service_proc = Process(target=webservice.run, name=webservice.name)
         self.processes.append(asgi_service_proc)
@@ -159,12 +165,6 @@ class Application:
             asyncio.ensure_future(self.logger.info(f'Starting process:{p.name}'))
             p.start()
             await self.logger.info({'process': p.name, 'status': p.is_alive(), 'pid': p.pid})
-
-    async def check(self):
-        while True:
-            for p in self.processes:
-                asyncio.ensure_future(self.dbconnector_is.callproc('is_processes_ins', rows=0, values=[p.name, p.is_alive(), p.pid]))
-            await asyncio.sleep(10)
 
     def stop(self, loop):
         for p in self.processes:
@@ -178,7 +178,10 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     app = Application(loop)
     loop.run_until_complete(app.log_init())
-    loop.run_until_complete(app.db_init())
-    loop.run_until_complete(app.proc_init())
-    loop.run_until_complete(app.start())
-    webservice.run()
+    places = PlacesListener()
+    places.run()
+    # loop.run_until_complete(app.db_init())
+
+    # loop.run_until_complete(app.proc_init())
+    # loop.run_until_complete(app.start())
+    # loop.run_until_complete(app.checker())

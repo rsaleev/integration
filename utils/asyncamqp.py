@@ -42,7 +42,7 @@ class AsyncAMQP:
             for b in bindings:
                 await self.__q.bind(self.__ex, routing_key=b)
             return self
-        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError):
+        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
             await self.connect()
 
     async def send(self, data: object, persistent: bool, keys: list, priority: int):
@@ -52,7 +52,7 @@ class AsyncAMQP:
                     await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.PERSISTENT, priority=priority), routing_key=k)
                 else:
                     await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.NOT_PERSISTENT, priority=priority), routing_key=k)
-            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError):
+            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
                 await self.connect()
 
     async def receive(self):
@@ -61,5 +61,5 @@ class AsyncAMQP:
                 async for message in q:
                     async with message.process():
                         return json.loads(message.body.decode())
-        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError):
+        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
             await self.connect()

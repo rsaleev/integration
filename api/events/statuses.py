@@ -59,8 +59,8 @@ class StatusListener:
                 data = await self.__amqpconnector.receive()
                 asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
             except Exception as e:
-                asyncio.ensure_future(self.__logger.error(e))
-                asyncio.sleep(0.1)
+                await self.__logger.error(e)
+                await asyncio.sleep(0.2)
                 continue
 
     def run(self):

@@ -9,17 +9,14 @@ from dataclasses import dataclass
 
 @dataclass
 class PlacesListener:
-    def __init__(self, devices_l):
+    def __init__(self):
         self.__dbconnector_wp: object = None
         self.__dbconnector_is: object = None
-        self.__amqp_connector_t1: object = None
-        self.__amqp_connector_t2: object = None
         self.__logger: object = None
         self.__loop: object = None
         self.name = 'PlacesListener'
         self.__trap: object = None
         self.__cmd: object = None
-        self.__devices = devices_l
 
     @property
     def eventloop(self):
@@ -80,9 +77,9 @@ class PlacesListener:
     async def _sql_connect(self):
         try:
             await self.__logger.info({'module': self.name, 'info': 'Establishing Integration RDBS Pool Connection'})
-            self.__dbconnector_is = await AsyncDBPool(conn=is_cnx, loop=self.eventloop).connect()
+            self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
             await self.__logger.info({'module': self.name, 'info': 'Establishing Wisepark RDBS Pool Connection'})
-            self.__dbconnector_wp = await AsyncDBPool(conn=wp_cnx, loop=self.eventloop).connect()
+            self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=self.eventloop).connect()
             if self.__dbconnector_is.connected and self.__dbconnector_wp.connected:
                 self.__sql_status = True
             else:
@@ -97,44 +94,34 @@ class PlacesListener:
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
         self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
                                                 exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqp_connector.bind('places', ['command.phychal.*', 'status.loop2'])
-        asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection",
-                                                  "status": True if self.__amqp_connector_1.conncted and self.__amqp_connector_2.connected else False}))
+        await self.__amqp_connector.bind('places', ['status.loop2'])
         return self
 
     async def _dispatch(self):
         while True:
-            # receive trap message
-            self.trap = await self.__amqp_connector_t1.receive()
-            # receive command message
-            self.cmd = await self.__amqp_connector_t2.receive()
-            if not trap is None and not cmd is None and trap['value'] == 1 and cmd['value'] == 101:
-                area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
-                self.trap = None
-                self.cmd = None
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, 1, area]))
-            elif not trap is None and not cmd is None and trap['value'] == 1 and cmd['value'] == 102:
-                area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
-                self.trap = None
-                self.cmd = None
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1, area]))
-            elif trap is None and not cmd is None and cmd['value'] == 103:
-                area = next(d['areaId'] for d in self.__devices if d['amppId'] == cmd['device_id'])
-                self.cmd = None
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, -1, area]))
-            elif trap is None and not cmd is None and cmd['value'] in [101, 102]:
-                pass
-            elif not trap is None and cmd is None and trap['value'] == 1:
-                area = next(d['areaId'] for d in self.__devices if d['terAddress'] == trap['device_id'])
-                self.trap = None
-                if trap['device_type'] == 1:
-                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transit_upd', [None, 1, area]))
-                elif trap['device_type'] == 2:
-                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_transits_upd', [None, -1, area]))
+            try:
+                msg = self.__amqp_connector.receive()
+                await self.__logger.warning(msg)
+                if msg['codename'] == 'BarrierLoop2Status':
+                    self.__trap = msg
+                elif msg['codename'] == 'PhyschalIn' or msg['codename'] == 'PhyschalOut' or msg['codename'] == 'OpenBarrier':
+                    self.__cmd = msg
+                if msg['codename'] in ['PhyschalIn', 'PhyschalOut'] and int(self.__cmd['ts']) - int(self.trap['ts']) < 10 and self.__trap['ampp_type'] == self.__cmd['device_type']:
+                    if self.__trap['codename'] == 'PhyschalIn':
+                        asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[-1]))
+                    elif self.__trap['codename'] == 'PhyschalOut':
+                        asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[1]))
+                elif msg['codename'] == 'OpenBarrier' and self.__cmd['ts'] - int(self.trap['ts']) < 10 and self.__trap['ampp_type'] == self.__cmd['device_type']:
+                    asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_commercial_upd', rows=0, values=[1]))
+                elif int(datetime.now()) - self.__trap['ts'] < 10:
+                    places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+                    for p in places:
+                        await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, p['areId']])
+            except Exception as e:
+                await self.__logger.error({'error': repr(e)})
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
         self.eventloop.run_until_complete(self._log_init())
-        self.eventloop.run_until_complete(self._receiver_connect())
-        if self.status:
-            self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_until_complete(self._sql_connect())
+        self.eventloop.run_until_complete(self._dispatch())

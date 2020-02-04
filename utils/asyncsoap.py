@@ -4,6 +4,7 @@ import asyncio
 from zeep.client import Client, Document
 from zeep.asyncio.transport import AsyncTransport
 from datetime import datetime
+import configuration as cfg
 
 
 class AsyncSOAP:
@@ -39,7 +40,7 @@ class AsyncSOAP:
     def deviceid(self):
         return self.__device
 
-    @deviceid.getter
+    @deviceid.setter
     def deviceid(self, v):
         self.__device = v
 
@@ -50,10 +51,10 @@ class AsyncSOAP:
     @property
     def header(self):
         return {'hIdMessage': int(datetime.now().timestamp()),
-                'hUser': self.__user,
+                'hUser': self.__login,
                 'hPassw': self.__password,
                 'hDateTime': datetime.now().strftime("%Y%m%d%H%M%S"),
-                'hIdSite': self.__objectid,
+                'hIdSite': cfg.object_id,
                 'hDevice': self.__device,
                 'hUserId': 0,
                 'hLanguage': 'ru'}

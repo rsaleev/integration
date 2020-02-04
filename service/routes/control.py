@@ -17,19 +17,7 @@ from starlette.background import BackgroundTasks
 
 router = APIRouter()
 
-name = "webservice_control"
-
-
-class DeviceStatus():
-    def __init__(self, command_num, device_id, device_ip, device_type, ampp_id, ampp_type, dt):
-        self.codename = 'Command'
-        self.__value: int = command_num
-        self.__device_id: int = None
-        self.__device_ip: str = None
-        self.__device_type: int = None
-        self.__ampp_id: int = None
-        self.__ampp_type: int = None
-        self.__ts = dt
+name = "control"
 
 
 class CommandRequest(BaseModel):
@@ -73,12 +61,14 @@ class CommandType(Enum):
     TURN_OFF = 15
     TURN_ON = 18
     REBOOT = 25
+    CLOSED = 26
+    CLOSEDALL = 27
+    OPENALL = 28
 
 
 @router.post('/rest/control')
 async def rem_control(*, request: CommandRequest):
     uid = uuid4()
-    print(ws.devices)
     tasks = BackgroundTasks()
     response = CommandResponse(**request.dict(exclude_unset=True))
     try:
@@ -215,6 +205,61 @@ async def rem_control(*, request: CommandRequest):
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 26:
+                    ws.soapconnector.deviceid = device_id
+                    result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='closed')
+                    if result:
+                        response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False, default=str)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 27:
+                    ws.soapconnector.deviceid = device_id
+                    result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='closedall')
+                    if result:
+                        response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False, default=str)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+                elif request.command_number == 28:
+                    ws.soapconnector.deviceid = device_id
+                    result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='closedalloff')
+                    if result:
+                        response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
+                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False, default=str)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
+                            {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
+
             except (TransportError, TimeoutError, ClientError):
                 # reconnect to service
                 await ws.soapconnector.connect()
