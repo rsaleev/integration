@@ -78,17 +78,15 @@ class Application:
                     for ds in mapping['statuses']['autocash']:
                         await self.dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terType'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
 
-            places = await self.dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+            places = await dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
             with open(cfg.places_mapping) as f:
-                challenged_places = json.load(f)
-            for p in places:
-                for cp in challenged_places:
-                    if p['areId'] == cp['area']:
-                        await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
-                    else:
-                        await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], 0])
+                mapped_places = json.load(f)
+            for cp, p in zip(mapped_places['challenged'], places):
+                if p['areId'] == cp['area']:
+                    await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
         except Exception as e:
             await self.logger.error(e)
+            pass
 
     async def proc_init(self):
         # statuses listener process

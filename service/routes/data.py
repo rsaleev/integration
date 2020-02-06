@@ -16,7 +16,6 @@ name = 'webservice_data'
 async def get_view(tbl: str):
     tasks = BackgroundTasks()
     tasks.add_task(ws.logger.info, {'module': name, 'path': f"rest/monitoring/data/{tbl}"})
-    # if re.match("ampp_", view_name):
     try:
         data = await ws.dbconnector_wp.callproc('wp_table_get', rows=-1, values=[tbl])
         return Response(json.dumps({'pageData': data}, default=str, ensure_ascii=False), status_code=200, media_type='application/json')
