@@ -66,10 +66,13 @@ class AsyncSNMPReceiver:
                 await self.__logger.debug(e)
                 if snmp_object.codename == 'BarrierLoop1Status':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=10)
+                    await asyncio.sleep(0.2)
                 elif snmp_object.codename == 'BarrierLoop2Status':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=10)
+                    await asyncio.sleep(0.2)
                 else:
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=5)
+                    await asyncio.sleep(0.2)
         except Exception as e:
             await self.__logger.error(e)
             await asyncio.sleep(0.2)

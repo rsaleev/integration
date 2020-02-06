@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import asyncio
 from pathlib import Path
 import json
@@ -109,8 +107,8 @@ class Application:
         places_listener = PlacesListener()
         places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
         self.processes.append(places_listener_proc)
-        webservice_proc = Process(target=webservice.run, name='webservice')
-        self.processes.append(webservice_proc)
+        # webservice_proc = Process(target=webservice.run, name='webservice')
+        # self.processes.append(webservice_proc)
 
     async def start(self):
         for p in self.processes:
@@ -132,4 +130,4 @@ if __name__ == "__main__":
     loop.run_until_complete(app.db_init())
     loop.run_until_complete(app.proc_init())
     loop.run_until_complete(app.start())
-    loop.run_forever()
+    webservice.run()
