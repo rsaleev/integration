@@ -55,5 +55,10 @@ async def shutdown():
     await app.logger.shutdown()
 
 
+@app.get('/')
+async def homepage():
+    return app.description
+
+
 def run():
     uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level='debug')

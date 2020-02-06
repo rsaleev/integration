@@ -39,7 +39,7 @@ class AsyncSNMPReceiver:
         return self.__name
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cfg.log_debug)
         await self.__logger.info(f'Module {self.name}. Logging initialized')
         return self
 
@@ -63,12 +63,13 @@ class AsyncSNMPReceiver:
                 snmp_object.ampp_id = device['amppId']
                 snmp_object.ampp_type = device['amppType']
                 snmp_object.device_ip = host
+                await self.__logger.debug(e)
                 if snmp_object.codename == 'BarrierLoop1Status':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=10)
                 elif snmp_object.codename == 'BarrierLoop2Status':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=10)
                 else:
-                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=2)
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=5)
         except Exception as e:
             await self.__logger.error(e)
             await asyncio.sleep(0.2)

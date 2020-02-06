@@ -57,7 +57,7 @@ class StatusListener:
         while True:
             try:
                 data = await self.__amqpconnector.receive()
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
+                await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])])
             except Exception as e:
                 await self.__logger.error(e)
                 await asyncio.sleep(0.2)

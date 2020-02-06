@@ -52,7 +52,7 @@ if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs"))):
 if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs/integration"))):
     os.mkdir(str(Path(str(Path(__file__).parents[1]) + "/logs/integration")))
 log = (str(Path(str(Path(__file__).parents[1]) + "/logs/integration/sys.log")))
-
+log_debug = (str(Path(str(Path(__file__).parents[1]) + "/logs/integration/sys_debug.log")))
 # SNMP
 snmp_polling = parser.getint("INTEGRATION", "snmp_poller_interval")
 snmp_timeout = parser.getint("INTEGRATION", "snmp_poller_timeout")
