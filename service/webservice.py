@@ -51,8 +51,8 @@ async def shutdown():
     ws.dbconnector_wp.pool.close()
     await ws.dbconnector_is.pool.wait.closed()
     await ws.dbconnector_wp.pool.wait.closed()
-    await ws.logger.shutdown()
-    await app.logger.shutdown()
+    # await ws.logger.shutdown()
+    # await app.logger.shutdown()
 
 
 @app.get('/')
