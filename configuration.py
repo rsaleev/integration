@@ -43,6 +43,7 @@ rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
 
 ### AMPP ###
 device_mapping = str(Path(str(Path(__file__).parents[1]) + "/configuration/devices.json"))
+places_mapping = str(Path(str(Path(__file__).parents[1]) + "/configuration/places.json"))
 ampp_parking_id = parser.getint("AMPP", "parking_id")
 physically_challenged_total = parser.getint("AMPP", "physically_challenged_places")
 

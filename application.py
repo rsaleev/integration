@@ -77,6 +77,16 @@ class Application:
                 elif d['terType'] == 3:
                     for ds in mapping['statuses']['autocash']:
                         await self.dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terType'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
+
+            places = await self.dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+            with open(cfg.places_mapping) as f:
+                challenged_places = json.load(f)
+            for p in places:
+                for cp in challenged_places:
+                    if p['areId'] == cp['area']:
+                        await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
+                    else:
+                        await self.dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], 0])
         except Exception as e:
             await self.logger.error(e)
 
@@ -102,7 +112,7 @@ class Application:
         places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
         self.processes.append(places_listener_proc)
         webservice_proc = Process(target=webservice.run, name='webservice')
-        # self.processes.append(webservice_proc)
+        self.processes.append(webservice_proc)
 
     async def start(self):
         for p in self.processes:
