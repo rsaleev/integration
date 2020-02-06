@@ -13,6 +13,8 @@ from zeep.exceptions import Error as ClientError
 import service.settings as ws
 from uuid import uuid4
 from starlette.background import BackgroundTasks
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 router = APIRouter()
@@ -73,7 +75,7 @@ async def rem_control(*, request: CommandRequest):
     response = CommandResponse(**request.dict(exclude_unset=True))
     try:
         if request.device_number in [d['amppId'] for d in ws.devices] or request.device_number in [d['terAddress'] for d in ws.devices]:
-            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": json.dumps(request.dict(exclude_unset=True))})
+            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": request.dict(exclude_unset=True)})
             tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                      json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}, ensure_ascii=False), datetime.now()])
             # define device id for request
@@ -85,7 +87,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid),  'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -93,7 +95,7 @@ async def rem_control(*, request: CommandRequest):
                         response.error = 1
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -103,7 +105,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation":  CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -111,7 +113,7 @@ async def rem_control(*, request: CommandRequest):
                         response.error = 1
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -121,7 +123,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -129,7 +131,7 @@ async def rem_control(*, request: CommandRequest):
                         response.error = 1
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -139,7 +141,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': request.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -147,7 +149,7 @@ async def rem_control(*, request: CommandRequest):
                         response.error = 1
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -157,7 +159,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -165,7 +167,7 @@ async def rem_control(*, request: CommandRequest):
                         response.error = 1
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -175,7 +177,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -183,7 +185,7 @@ async def rem_control(*, request: CommandRequest):
                         response.error = 1
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -193,7 +195,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -211,7 +213,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -229,7 +231,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -247,7 +249,7 @@ async def rem_control(*, request: CommandRequest):
                     if result:
                         response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                            request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                            request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
@@ -267,7 +269,7 @@ async def rem_control(*, request: CommandRequest):
             response.error = 1
             response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
             tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
-                request.command_number).name, "response": json.dumps(response.dict(exclude_unset=True), ensure_ascii=False)})
+                request.command_number).name, "response": response.dict(exclude_unset=True)})
             tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'error', json.dumps(
                 {'uid': str(uid), 'error': f'Device {request.device_number} not found'}), datetime.now()])
             request.error = 1
