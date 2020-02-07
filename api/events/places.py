@@ -57,12 +57,12 @@ class PlacesListener:
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
         self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
                                                exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('places', ['status.loop2', 'cmd.physchal.in', 'cmd.physchal.out'])
+        await self.__amqpconnector.bind('places', bindings=['status.loop2', 'cmd.physchal.in', 'cmd.physchal.out'], durable=False)
         return self
 
     async def _consume(self):
         while True:
-            msg = await self.__amqpconnector.receive()
+            msg = await self.__amqpconnector.receive(noack=False)
             if msg['codename'] == 'BarrierLoop2Status':
                 self.trap = msg
                 self.trap_set = True
@@ -100,4 +100,4 @@ class PlacesListener:
         self.eventloop.run_until_complete(self._log_init())
         self.eventloop.run_until_complete(self._sql_connect())
         self.eventloop.run_until_complete(self._amqp_connect())
-        self.eventloop.run_until_complete(self._dispatch())
+        # self.eventloop.run_until_complete(self._dispatch())

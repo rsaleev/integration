@@ -32,6 +32,8 @@ class AsyncDBPool():
                 if code == 2003 or 1053:
                     await asyncio.sleep(0.5)
                     continue
+                else:
+                    raise e
 
     async def callproc(self, procedure: str,  rows: int, values: list = None):
         try:

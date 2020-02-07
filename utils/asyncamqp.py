@@ -1,4 +1,4 @@
-from aio_pika import connect, ExchangeType, Message, DeliveryMode
+from aio_pika import connect_robust, ExchangeType, Message, DeliveryMode
 
 
 import json
@@ -20,29 +20,28 @@ class AsyncAMQP:
         self.connected = bool
 
     async def connect(self):
-        while self.__cnx is None:
+        while self.__cnx is None or self.__ch is None:
             try:
-                self.__cnx = await connect(f"amqp://{self.__user}:{self.__password}@{self.__host}/", loop=self.__loop, timeout=5)
-            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+                self.__cnx = await connect_robust(f"amqp://{self.__user}:{self.__password}@{self.__host}/", loop=self.__loop, timeout=5)
+                self.__ch = await self.__cnx.channel()
+                if self.__exchange_type == 'fanout':
+                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.FANOUT, robust=True)
+                elif self.__exchange_type == 'topic':
+                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.TOPIC, robust=True)
+                elif self.__exchange_type == 'direct':
+                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.DIRECT, robust=True)
+                self.connected = True
+                return self
+            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
                 continue
-        else:
-            self.__ch = await self.__cnx.channel()
-            if self.__exchange_type == 'fanout':
-                self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.FANOUT)
-            elif self.__exchange_type == 'topic':
-                self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.TOPIC)
-            elif self.__exchange_type == 'direct':
-                self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.DIRECT)
-            self.connected = True
-            return self
 
-    async def bind(self, queue_name: str, bindings: list):
+    async def bind(self, queue_name: str, bindings: list, durable: bool):
         try:
-            self.__q = await self.__ch.declare_queue(queue_name, durable=True, arguments={'x-max-priority': 10})
+            self.__q = await self.__ch.declare_queue(queue_name, durable=durable, arguments={'x-max-priority': 10}, robust=True)
             for b in bindings:
                 await self.__q.bind(self.__ex, routing_key=b)
             return self
-        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
             await self.connect()
 
     async def send(self, data: object, persistent: bool, keys: list, priority: int):
@@ -52,7 +51,7 @@ class AsyncAMQP:
                     await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.PERSISTENT, priority=priority), routing_key=k)
                 else:
                     await self.__ex.publish(Message(body=json.dumps(data).encode(), delivery_mode=DeliveryMode.NOT_PERSISTENT, priority=priority), routing_key=k)
-            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+            except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
                 await self.connect()
 
     async def receive(self):
@@ -61,5 +60,16 @@ class AsyncAMQP:
                 async for message in q:
                     async with message.process():
                         return json.loads(message.body.decode())
-        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
             await self.connect()
+            await self.bind()
+
+    async def cbreceive(self, cbfun, processor=None):
+        try:
+            async with self.__q.iterator() as q:
+                async for message in q:
+                    async with message.process():
+                        asyncio.ensure_future(cbfun(message.body.decode()))
+        except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
+            await self.connect()
+            await self.bind()

@@ -7,6 +7,9 @@ from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
 import configuration as cfg
 import json
+from queue import Queue
+import nest_asyncio
+nest_asyncio.apply()
 
 
 class StatusListener:
@@ -18,6 +21,7 @@ class StatusListener:
         self.__loop: object = None
         self.__amqp_receiver_status = bool
         self.name = 'StatusesListener'
+        self.q = asyncio.Queue(maxsize=100, loop=asyncio.get_running_loop())
 
     @property
     def status(self):
@@ -34,7 +38,7 @@ class StatusListener:
     async def _amqp_connect(self):
         await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
         self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('statuses', ['#'])
+        await self.__amqpconnector.bind('statuses', ['#'], durable=False)
         asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'AMQP Connection',
                                                   'status': self.__amqpconnector.connected}))
         return self
@@ -53,15 +57,15 @@ class StatusListener:
         finally:
             return self
 
+    # callback for post-processing AMQP message
+    async def _process(self, incoming_msg):
+        data = json.loads(incoming_msg)
+        await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])])
+
+    # dispatcher
     async def _dispatch(self):
         while True:
-            try:
-                data = await self.__amqpconnector.receive()
-                await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])])
-            except Exception as e:
-                await self.__logger.error(e)
-                await asyncio.sleep(0.2)
-                continue
+            await self.__amqpconnector.cbreceive(self._process)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
@@ -69,3 +73,4 @@ class StatusListener:
         self.eventloop.run_until_complete(self._sql_connect())
         self.eventloop.run_until_complete(self._amqp_connect())
         self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_forever()

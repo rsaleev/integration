@@ -8,6 +8,9 @@ import subprocess
 from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncamqp import AsyncAMQP
+import aioping
+import nest_asyncio
+nest_asyncio.apply()
 
 
 class AsyncPingPoller:
@@ -108,15 +111,8 @@ class AsyncPingPoller:
             return self.__value
 
         @value.setter
-        def value(self, v: bool):
-            self.__value = value
-
-        @value.getter
-        def value(self):
-            if self.__value:
-                return 'ONLINE'
-            else:
-                return 'OFFLINE'
+        def value(self, v):
+            self.__value = v
 
         @property
         def ts(self):
@@ -152,12 +148,12 @@ class AsyncPingPoller:
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection", "status": self.__amqp_connector.connected}))
         return self.__amqp_connector
 
-    def _ping(self, hostname):
+    async def _ping(self, hostname):
         try:
-            subprocess.check_output(["ping", "-c", "1", "-W", "1", hostname])
-            return True
-        except subprocess.CalledProcessError:
-            return False
+            await aioping.ping(hostname, timeout=10)
+            return 'ONLINE'
+        except TimeoutError:
+            return 'OFFLINE'
 
     async def _dispatch(self):
         while True:
@@ -169,12 +165,13 @@ class AsyncPingPoller:
                 ping_object.ampp_id = device['amppId']
                 ping_object.ampp_type = device['amppType']
                 ping_object.ts = datetime.now().timestamp()
-                status = await self.eventloop.run_in_executor(None, self._ping, device['terIp'])
+                ping_object.value = await self._ping(device['terIp'])
                 await self.__amqp_connector.send(ping_object.data, persistent=True, keys=['status.online'], priority=1)
-            await asyncio.sleep(cfg.snmp_polling)
+            await asyncio.sleep(10)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
         self.eventloop.run_until_complete(self._log_init())
         self.eventloop.run_until_complete(self._amqp_connect())
         self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_forever()
