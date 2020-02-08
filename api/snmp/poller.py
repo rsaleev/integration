@@ -56,6 +56,7 @@ class AsyncSNMPPoller:
                             if not snmp_object is None:
                                 snmp_object.ts = datetime.now().timestamp()
                                 snmp_object.device_id = device['terId']
+                                snmp_object.device_address = device['terAddress']
                                 snmp_object.device_type = device['terType']
                                 snmp_object.ampp_id = device['amppId']
                                 snmp_object.ampp_type = device['amppType']
@@ -63,11 +64,10 @@ class AsyncSNMPPoller:
                                 snmp_object.snmpvalue = res.value
                                 if snmp_object.codename == "BarrierLoop1Status":
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
-
                                 elif snmp_object.codename == "BarrierLoop2Status":
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
                                 elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice"]:
-                                    await self.__amqconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=5)
+                                    await self.__amqconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=7)
                                 else:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.snmp'], priority=4)
                     # handle SNMP exceptions

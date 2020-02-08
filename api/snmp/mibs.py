@@ -12,6 +12,7 @@ class SNMPObject:
         self.oid = oid_value
         self.__snmpvalue: int = None
         self.__device_id: int = None
+        self.__device_address: int = None
         self.__device_ip: str = None
         self.__device_type: int = None
         self.__statusname = status_map
@@ -32,6 +33,18 @@ class SNMPObject:
     @device_id.getter
     def device_id(self):
         return self.__device_id
+
+    @property
+    def device_address(self):
+        return self.__device_address
+
+    @device_address.setter
+    def device_address(self, value: int):
+        self.__device_id = value
+
+    @device_address.getter
+    def device_address(self):
+        return self.__device_address
 
     @property
     def device_type(self):
@@ -120,6 +133,7 @@ class SNMPObject:
     @property
     def data(self):
         return {'device_id': self.device_id,
+                'device_address': self.device_address,
                 'device_type': self.device_type,
                 'codename': self.codename,
                 'value': self.snmpvalue,

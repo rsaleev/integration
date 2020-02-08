@@ -63,8 +63,8 @@ async def get_places():
 async def upd_places(*, places: List[Places]):
     try:
         for index, place in enumerate(places):
-            await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, index+2])
-            await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[place.client_free, index+2])
+            await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, index+1])
+            await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[place.client_free, index+1])
         return Response(status_code=200)
     except (ProgrammingError, OperationalError) as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})

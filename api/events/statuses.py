@@ -19,16 +19,8 @@ class StatusListener:
         self.__amqpconnector: object = None
         self.__logger: object = None
         self.__loop: object = None
-        self.__amqp_receiver_status = bool
         self.name = 'StatusesListener'
-        self.q = asyncio.Queue(maxsize=100, loop=asyncio.get_running_loop())
 
-    @property
-    def status(self):
-        if self.__amqpconnector.connected and self.__dbconnector_is.connected:
-            return True
-        else:
-            return False
 
     async def _log_init(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
@@ -44,7 +36,6 @@ class StatusListener:
         return self
 
     async def _sql_connect(self):
-        try:
             self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
             if self.__dbconnector_is.connected:
                 self.__sql_status = True

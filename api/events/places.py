@@ -63,29 +63,28 @@ class PlacesListener:
     async def _consume(self):
         while True:
             msg = await self.__amqpconnector.receive(noack=False)
-            if msg['codename'] == 'BarrierLoop2Status':
-                self.trap = msg
-                self.trap_set = True
+            if msg['codename'] == 'BarrierLoop2Status' and msg['value'] == 1:
+                self.status = msg
+                self.status_set = True
             elif msg['codename'] in ['PhyschalIn', 'PhyschalOut']:
                 self.cmd = msg
                 self.cmd_set = True
 
-    async def _process(self):
-        while True:
-            await asyncio.sleep(0.5)
-            if self.trap_set and self.cmd_set and self.trap['amppId'] == self.cmd['amppId']:
-                if self.cmd['codename'] == 'PhyschalIn':
-                    await self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[-1])
-                    self.cmd_set = False
-                    self.trap_set = False
-                elif self.cmd['codename'] == 'PhyschalOut':
-                    await self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[1])
-                    self.cmd_set = False
-                    self.trap_set = False
-            elif self.trap_set and not self.cmd_set:
-                places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
-                for p in places:
-                    await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, p['areId']])
+    async def _process(self, incoming_msg):
+        data = json.loads(incoming_msg)
+        if self.trap_set and self.cmd_set and self.trap['amppId'] == self.cmd['amppId']:
+            if self.cmd['codename'] == 'PhyschalIn':
+                await self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[-1])
+                self.cmd_set = False
+                self.trap_set = False
+            elif self.cmd['codename'] == 'PhyschalOut':
+                await self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[1])
+                self.cmd_set = False
+                self.trap_set = False
+        elif self.trap_set and not self.cmd_set:
+            places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+            for p in places:
+                await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, p['areId']])
 
     async def _dispatch(self):
         l1 = asyncio.get_event_loop()
@@ -100,4 +99,4 @@ class PlacesListener:
         self.eventloop.run_until_complete(self._log_init())
         self.eventloop.run_until_complete(self._sql_connect())
         self.eventloop.run_until_complete(self._amqp_connect())
-        # self.eventloop.run_until_complete(self._dispatch())
+        #self.eventloop.run_until_complete(self._dispatch())

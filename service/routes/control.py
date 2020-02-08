@@ -13,8 +13,6 @@ from zeep.exceptions import Error as ClientError
 import service.settings as ws
 from uuid import uuid4
 from starlette.background import BackgroundTasks
-# import nest_asyncio
-# nest_asyncio.apply()
 
 
 router = APIRouter()
@@ -59,7 +57,7 @@ class CommandType(Enum):
     OPEN_BARRIER = 3
     CLOSE_BARRIER = 6
     LOCK_BARRIER = 9
-    UNLOCK_BARRIER = 9
+    UNLOCK_BARRIER = 12
     TURN_OFF = 15
     TURN_ON = 18
     REBOOT = 25
@@ -79,7 +77,7 @@ async def rem_control(*, request: CommandRequest):
             tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                      json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}, ensure_ascii=False), datetime.now()])
             # define device id for request
-            device_id = next((d['terAddress'] for d in ws.devices if ['amppId'] == request.device_number), request.device_number)
+            device_id = next((d['terAddress'] for d in ws.devices if d['amppId'] == request.device_number), request.device_number)
             try:
                 if request.command_number == 3:
                     ws.soapconnector.deviceid = device_id

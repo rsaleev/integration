@@ -15,7 +15,9 @@ async def app_init(eventloop):
     logger.info("Establishing RDBS Integration Pool Connection...")
     dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=asyncio.get_running_loop()).connect()
     logger.info(f"RDBS Integration Connection: {dbconnector_is.connected}")
+    await dbconnector_is.callproc('is_clear', rows=0, values=[])
     logger.info(f"Reading device mapping file")
+
     try:
         with open(cfg.device_mapping) as f:
             mapping = json.load(f)
@@ -34,18 +36,23 @@ async def app_init(eventloop):
                                                                                     dm.get('imager', None), dm.get('payonline', None), dm.get('uniteller', None)])
         devices_is = await dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
         for di in devices_is:
+            print(di)
             if di['terType'] == 0:
                 for ds in mapping['statuses']['server']:
-                    asyncio.ensure_future(dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terType'], di['terIp'], di['amppId'], di['amppType'], ds, '']))
+                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
+                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
             elif di['terType'] == 1:
                 for ds in mapping['statuses']['entry']:
-                    asyncio.ensure_future(dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terType'], di['terIp'], di['amppId'], di['amppType'], ds, '']))
-            elif d['terType'] == 2:
+                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
+                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
+            elif di['terType'] == 2:
                 for ds in mapping['statuses']['exit']:
-                    asyncio.ensure_future(dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terType'], di['terIp'], di['amppId'], di['amppType'], ds, '']))
-            elif d['terType'] == 3:
+                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
+                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
+            elif di['terType'] == 3:
                 for ds in mapping['statuses']['autocash']:
-                    asyncio.ensure_future(dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terType'], di['terIp'], di['amppId'], di['amppType'], ds, '']))
+                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
+                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
 
         places = await dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
         with open(cfg.places_mapping) as f:
@@ -55,7 +62,7 @@ async def app_init(eventloop):
                 await dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
     except Exception as e:
         await logger.error(e)
-
+        print(e)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(app_init(loop))

@@ -51,15 +51,15 @@ class Application:
         snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
         self.processes.append(snmp_poller_proc)
         # # # SNMP receiver process
-        # snmp_receiver = AsyncSNMPReceiver(devices)
-        # snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
-        # self.processes.append(snmp_receiver_proc)
+        snmp_receiver = AsyncSNMPReceiver(devices)
+        snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
+        self.processes.append(snmp_receiver_proc)
         # # places listener
         places_listener = PlacesListener()
         places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
         self.processes.append(places_listener_proc)
-        # webservice_proc = Process(target=webservice.run, name='webservice')
-        # self.processes.append(webservice_proc)
+        webservice_proc = Process(target=webservice.run, name='webservice')
+        self.processes.append(webservice_proc)
         for p in self.processes:
             asyncio.ensure_future(self.logger.info(f'Starting process:{p.name}'))
             p.start()
