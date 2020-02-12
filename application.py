@@ -37,7 +37,7 @@ class Application:
         await self.logger.info("Establishing RDBS Integration Pool Connection...")
         self.dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
         await self.logger.info(f"RDBS Integration Connection: {self.dbconnector_is.connected}")
-        devices = await self.dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
+        devices = await self.dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
         # statuses listener process
         statuses_listener = StatusListener()
         statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
