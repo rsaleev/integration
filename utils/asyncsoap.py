@@ -28,10 +28,9 @@ class AsyncSOAP:
                     wsdl = io.BytesIO(content)
                     self.__client = Client(wsdl, transport=self.__transport)
                     self.connected = True
+                    return self
             except:
                 continue
-        else:
-            return self
 
     # Exclusive header for CAMAE SOAP service
     # Device is always 0 to mimic server request

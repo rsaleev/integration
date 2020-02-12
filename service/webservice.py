@@ -1,5 +1,4 @@
 from enum import Enum
-import logging
 import asyncio
 from uuid import uuid4
 import json
@@ -9,13 +8,11 @@ from starlette.responses import Response, JSONResponse, PlainTextResponse
 from starlette.requests import Request
 from starlette.background import BackgroundTask, BackgroundTasks
 from typing import Optional
-import nest_asyncio
-import json
 from service.routes import control, data, logs, places, services, statuses, subscription, ticket
 import configuration as cfg
 from service import settings as ws
+import nest_asyncio
 nest_asyncio.apply()
-
 
 app = FastAPI(title="Remote management Module",
               description="Wisepark Monitoring and Remote Management Module",
@@ -29,9 +26,10 @@ app.include_router(statuses.router)
 app.include_router(subscription.router)
 app.include_router(ticket.router)
 
-app.logger = ws.logger
 
 name = 'remote'
+
+app.logger = ws.logger
 
 
 @app.on_event('startup')
@@ -58,6 +56,11 @@ async def shutdown():
 @app.get('/')
 async def homepage():
     return app.description
+
+
+@app.get('/rdbs')
+async def rdbs():
+    return {'IS': ws.dbconnector_is.connected, 'WP': ws.dbconnector_wp.connected}
 
 
 def run():

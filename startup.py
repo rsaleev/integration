@@ -34,9 +34,8 @@ async def app_init(eventloop):
                     await dbconnector_is.callproc('is_devices_ins', rows=0, values=[d['terId'], d['terAddress'], d['terType'], dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], d['terIdArea'],
                                                                                     d['terIPV4'], d['terCamPlate1'], d['terCamPlate2'], d['terCamPhoto1'], d['terCamPhoto2'],
                                                                                     dm.get('imager', None), dm.get('payonline', None), dm.get('uniteller', None)])
-        devices_is = await dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
+        devices_is = await dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None])
         for di in devices_is:
-            print(di)
             if di['terType'] == 0:
                 for ds in mapping['statuses']['server']:
                     await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],

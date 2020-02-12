@@ -6,6 +6,7 @@ import asyncio
 import datetime
 from dataclasses import dataclass
 from threading import Thread
+import json
 
 
 @dataclass
@@ -42,7 +43,7 @@ class PlacesListener:
             return False
 
     async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger('places.log')
         await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
         return self
 
@@ -57,46 +58,30 @@ class PlacesListener:
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
         self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
                                                exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('places', bindings=['status.loop2', 'cmd.physchal.in', 'cmd.physchal.out'], durable=False)
+        await self.__amqpconnector.bind('places', bindings=['status.loop2', 'command.physchal.in', 'command.physchal.out'], durable=False)
         return self
-
-    async def _consume(self):
-        while True:
-            msg = await self.__amqpconnector.receive(noack=False)
-            if msg['codename'] == 'BarrierLoop2Status' and msg['value'] == 1:
-                self.status = msg
-                self.status_set = True
-            elif msg['codename'] in ['PhyschalIn', 'PhyschalOut']:
-                self.cmd = msg
-                self.cmd_set = True
 
     async def _process(self, incoming_msg):
         data = json.loads(incoming_msg)
-        if self.trap_set and self.cmd_set and self.trap['amppId'] == self.cmd['amppId']:
-            if self.cmd['codename'] == 'PhyschalIn':
-                await self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[-1])
-                self.cmd_set = False
-                self.trap_set = False
-            elif self.cmd['codename'] == 'PhyschalOut':
-                await self.__dbconnector_is.callproc('is_places_challenged_upd', rows=0, values=[1])
-                self.cmd_set = False
-                self.trap_set = False
-        elif self.trap_set and not self.cmd_set:
+        if data['codename'] == 'BarrierLoop2Status' and data['value'] == "OCCUPIED":
+            self.status = data
+            self.status_set = True
+            return self
+        elif data['codename'] in ['PhyschalIn', 'PhyschalOut']:
+            self.cmd = data
+            self.cmd_set = True
+            return self
+
+    async def _dispatch(self):
+        while True:
             places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
             for p in places:
                 await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, p['areId']])
-
-    async def _dispatch(self):
-        l1 = asyncio.get_event_loop()
-        l2 = asyncio.get_event_loop()
-        t1 = Thread(target=l1.run_until_complete(self._consume()))
-        t1.start()
-        t2 = Thread(target=l2.run_until_complete(self._process()))
-        t2.start()
+            await asyncio.sleep(3)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
         self.eventloop.run_until_complete(self._log_init())
         self.eventloop.run_until_complete(self._sql_connect())
         self.eventloop.run_until_complete(self._amqp_connect())
-        #self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_until_complete(self._dispatch())

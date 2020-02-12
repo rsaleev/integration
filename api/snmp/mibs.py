@@ -40,7 +40,7 @@ class SNMPObject:
 
     @device_address.setter
     def device_address(self, value: int):
-        self.__device_id = value
+        self.__device_address = value
 
     @device_address.getter
     def device_address(self):
@@ -108,7 +108,6 @@ class SNMPObject:
     @snmpvalue.getter
     def snmpvalue(self):
         if self.__statusname:
-
             return self.__statusname(self.__snmpvalue).name
         elif self.__statusforced:
             return self.__statusforced

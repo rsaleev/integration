@@ -33,7 +33,7 @@ class AsyncAMQP:
                 self.connected = True
                 return self
             except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
-                continue
+                raise
 
     async def bind(self, queue_name: str, bindings: list, durable: bool):
         try:

@@ -21,7 +21,6 @@ class StatusListener:
         self.__loop: object = None
         self.name = 'StatusesListener'
 
-
     async def _log_init(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({"module": self.name, "info": "Logging initialized"})
@@ -36,17 +35,8 @@ class StatusListener:
         return self
 
     async def _sql_connect(self):
-            self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
-            if self.__dbconnector_is.connected:
-                self.__sql_status = True
-            else:
-                self.__sql_status = False
-            return self
-        except Exception as e:
-            self.__sql_status = False
-            await self.__logger.error(e)
-        finally:
-            return self
+        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
+        return self
 
     # callback for post-processing AMQP message
     async def _process(self, incoming_msg):
@@ -57,6 +47,7 @@ class StatusListener:
     async def _dispatch(self):
         while True:
             await self.__amqpconnector.cbreceive(self._process)
+            await asyncio.sleep(0.5)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()

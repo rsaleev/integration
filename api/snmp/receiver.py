@@ -55,11 +55,12 @@ class AsyncSNMPReceiver:
             val = message.data.varbinds[2].value
             if host in [d['terIp'] for d in self.__devices] and oid in [m.oid for m in receiving_mibs]:
                 device = next(dev for dev in self.__devices if dev['terIp'] == host)
+                asyncio.ensure_future(device)
                 snmp_object = next(mib for mib in receiving_mibs if mib.oid == oid)
                 snmp_object.ts = datetime.now().timestamp()
                 snmp_object.snmpvalue = val
                 snmp_object.device_id = device['terId']
-                snmp_object.devide_address = device['terAddress']
+                snmp_object.device_address = device['terAddress']
                 snmp_object.device_type = device['terType']
                 snmp_object.ampp_id = device['amppId']
                 snmp_object.ampp_type = device['amppType']
@@ -78,7 +79,6 @@ class AsyncSNMPReceiver:
             await asyncio.sleep(0.2)
 
     async def _dispatch(self):
-        await self.__logger.info({self.name: self.status})
         trap_listener = aiosnmp.SnmpV2TrapServer(host=cfg.snmp_trap_host, port=cfg.snmp_trap_port, communities=("public",), handler=self._handler)
         await trap_listener.run()
 

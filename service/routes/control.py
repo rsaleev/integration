@@ -78,6 +78,7 @@ async def rem_control(*, request: CommandRequest):
                                                                                      json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}, ensure_ascii=False), datetime.now()])
             # define device id for request
             device_id = next((d['terAddress'] for d in ws.devices if d['amppId'] == request.device_number), request.device_number)
+            print(device_id)
             try:
                 if request.command_number == 3:
                     ws.soapconnector.deviceid = device_id

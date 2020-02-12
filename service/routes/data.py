@@ -15,7 +15,6 @@ name = 'webservice_data'
 @router.get('/rest/monitoring/data/{tbl}')
 async def get_view(tbl: str):
     tasks = BackgroundTasks()
-    tasks.add_task(ws.logger.info, {'module': name, 'path': f"rest/monitoring/data/{tbl}"})
     try:
         data = await ws.dbconnector_wp.callproc('wp_table_get', rows=-1, values=[tbl])
         return Response(json.dumps({'pageData': data}, default=str, ensure_ascii=False), status_code=200, media_type='application/json')
