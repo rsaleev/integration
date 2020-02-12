@@ -37,7 +37,7 @@ async def startup():
     ws.logger = await ws.logger.getlogger(cfg.log)
     await ws.dbconnector_is.connect()
     await ws.dbconnector_wp.connect()
-    ws.devices = await ws.dbconnector_is.callproc('is_devices_get', rows=-1, values=[])
+    ws.devices = await ws.dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
     await ws.soapconnector.connect()
     await ws.amqpconnector.connect()
 
