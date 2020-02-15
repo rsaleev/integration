@@ -148,6 +148,7 @@ class SNMPObject:
 
 receiving_mibs = [
     SNMPObject('General', '.1.3.6.1.4.1.40383.1.2.2.90', forced_value='OUT_OF_SERVICE').instance,
+    SNMPObject('General', '.1.3.6.1.4.1.40383.1.2.2.29', forced_value='REBOOTING').instance,
     SNMPObject('UpperDoor', '.1.3.6.1.4.1.40383.1.2.2.21', forced_value='OPENED_WITH_ALARM').instance,
     SNMPObject('Roboticket1', '.1.3.6.1.4.1.40383.1.2.1.10001.3.2', forced_value='OUT_OF_TICKETS').instance,
     SNMPObject('General', '.1.3.6.1.4.1.40383.1.2.2.29', forced_value='REBOOTING').instance,
@@ -167,9 +168,9 @@ receiving_mibs = [
     SNMPObject('CoinsHopper2', '.1.3.6.1.4.1.40383.1.2.2.25', forced_value='MAX_COINS').instance,
     SNMPObject('CoinsHopper3', '.1.3.6.1.4.1.40383.1.2.2.26', forced_value='MAX_COINS').instance,
     SNMPObject('NotesEscrow', '.1.3.6.1.4.1.40383.1.2.2.28', forced_value='MAX_NOTES').instance,
-    SNMPObject('CarReversed', '.1.3.6.1.4.1.40383.1.2.3.4').instance,
+    SNMPObject('BarrierLoop1Status', '.1.3.6.1.4.1.40383.1.2.3.4', forced_value='REVERSE').instance,
     SNMPObject('FiscalPrinter', '.1.3.6.1.4.1.40383.1.2.1.11003.2.1', status_map=FiscalPrintingError).instance,
-    SNMPObject('FiscalPrinter', '.1.3.6.1.4.1.40383.1.2.1.11003.2.2', forced_value='OUT_OF_PAPER').instance,
+    SNMPObject('FiscalPrinter', '.1.3.6.1.4.1.40383.1.2.1.11003.2.2', forced_value='ALMOST_OUT_OF_PAPER').instance,
     SNMPObject('FiscalPrinter', '.1.3.6.1.4.1.40383.1.2.1.11003.2.3', forced_value='MEMORY_IS_FULL').instance,
     SNMPObject('NotesEscrow', '.1.3.6.1.4.1.40383.1.2.2.116', forced_value='JAMMED_NOTE').instance,
     SNMPObject('PaymentStatus', '.1.3.6.1.4.1.40383.1.2.3.3').instance,
