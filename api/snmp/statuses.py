@@ -170,8 +170,9 @@ class CoinsHopper(Enum):
 
 class NotesEscrow(Enum):
     NO_ERROR = 0
+    JAMMED_NOTE = 1
     COINS_LOW = 3
-    JAMMED = 5
+    JAMMED_NOTE = 5
     TIMEOUT = 9
     INCOMPLETE_PAYOUT = 10
     INCOMPLETE_FLOAT = 11
@@ -190,8 +191,9 @@ class NotesEscrow(Enum):
 
 class NotesReader(Enum):
     NO_ERROR = 0
+    JAMMED_NOTE = 1
     COINS_LOW = 3
-    JAMMED = 5
+    JAMMED_NOTE = 5
     TIMEOUT = 9
     INCOMPLETE_PAYOUT = 10
     INCOMPLETE_FLOAT = 11
@@ -237,6 +239,7 @@ class FiscalPrinter(Enum):
     NO_RESPONSE = 0
     OK = 1
 
+
 class FiscalPrintingError(Enum):
     PAPER_PRESENTED = 0
     ERROR = 1
@@ -249,6 +252,7 @@ class FiscalPrinterBD(Enum):
     SHIFT_OPEN_24H_NOT_ELAPSED = 2
     SHIFT_OPEN_24H_ELAPSED = 3
     SHIFT_CLOSED = 4
+
 
 class Loop(Enum):
     FREE = 0
@@ -279,3 +283,12 @@ class PaymentCardType(Enum):
     MAESTRO = 2
     MASTERCARD = 3
     MIR = 4
+
+
+class PaymentStatus(Enum):
+    FINISHED_WITH_SUCCESS = 0
+    ZONE_PAYMENT = 1
+    PAYMENT_CANCELLED = 2
+    FINISHED_WITH_ISSUES = 3
+    OPERATION_TIMEOUT = 4
+    UNKNOWN = 5
