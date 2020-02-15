@@ -61,9 +61,9 @@ class CommandType(Enum):
     TURN_OFF = 15
     TURN_ON = 18
     REBOOT = 25
-    CLOSED = 26
-    CLOSEDALL = 27
-    OPENALL = 28
+    CLOSEDOFF = 30
+    CLOSEDALL = 31
+    OPENALL = 32
 
 
 @router.post('/rest/control')
@@ -260,7 +260,6 @@ async def rem_control(*, request: CommandRequest):
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info', json.dumps(
                             {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                         return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
-
             except (TransportError, TimeoutError, ClientError):
                 # reconnect to service
                 await ws.soapconnector.connect()
