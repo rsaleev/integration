@@ -38,12 +38,9 @@ class AsyncSNMPReceiver:
     def name(self):
         return self.__name
 
-    async def _log_init(self):
+    async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log_debug)
         await self.__logger.info(f'Module {self.name}. Logging initialized')
-        return self
-
-    async def _amqp_connect(self):
         await self.__logger.info({'module': self.name, 'info': 'Establishing AMQP Connection Status'})
         self.__amqpconnector = await AsyncAMQP(self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
         await self.__logger.info({'module': self.name, 'AMQP Connection Status': self.__amqpconnector.connected})
@@ -71,8 +68,11 @@ class AsyncSNMPReceiver:
                 elif snmp_object.codename == 'BarrierLoop2Status':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=10)
                     await asyncio.sleep(0.2)
+                elif snmp_object.codename == 'General':
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.general'], priority=9)
+                    await asyncio.sleep(0.2)
                 else:
-                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=5)
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=8)
                     await asyncio.sleep(0.2)
         except Exception as e:
             await self.__logger.error(e)
@@ -84,7 +84,6 @@ class AsyncSNMPReceiver:
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
-        self.eventloop.run_until_complete(self._log_init())
-        self.eventloop.run_until_complete(self._amqp_connect())
+        self.eventloop.run_until_complete(self._initialize())
         self.eventloop.run_until_complete(self._dispatch())
         self.eventloop.run_forever()
