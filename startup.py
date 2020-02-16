@@ -26,12 +26,12 @@ async def app_init(eventloop):
         await dbconnector_is.callproc('is_clear', rows=0, values=[])
         for dm in mapping['devices']:
             if dm['description'] == 'server':
-                await dbconnector_is.callproc('is_devices_ins', rows=0, values=[0, 0, 0, dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], 0,
+                await dbconnector_is.callproc('is_devices_ins', rows=0, values=[0, 0, dm['ter_type'], dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], 0,
                                                                                 cfg.server_ip, None, None, None, None,
                                                                                 dm.get('imager', None), dm.get('payonline', None), dm.get('uniteller', None)])
             for d in devices:
                 if d['terAddress'] == dm['ter_addr']:
-                    await dbconnector_is.callproc('is_devices_ins', rows=0, values=[d['terId'], d['terAddress'], d['terType'], dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], d['terIdArea'],
+                    await dbconnector_is.callproc('is_devices_ins', rows=0, values=[d['terId'], d['terAddress'], dm['ter_type'], dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], d['terIdArea'],
                                                                                     d['terIPV4'], d['terCamPlate1'], d['terCamPlate2'], d['terCamPhoto1'], d['terCamPhoto2'],
                                                                                     dm.get('imager', None), dm.get('payonline', None), dm.get('uniteller', None)])
         devices_is = await dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None])
@@ -59,6 +59,16 @@ async def app_init(eventloop):
         for cp, p in zip(mapped_places['challenged'], places):
             if p['areId'] == cp['area']:
                 await dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
+        money = await dbconnector_wp('wp_money_get', rows=-1, values=[None])
+        for m in money:
+            device_is = next(d for d in devices_is if d['terId'] == m['curTerId'])
+            await dbconnector_is.callproc('is_money_ins', rows=0, values=[device_is['terId'], device_is['terAddress'], device_is['terDescription'], device_is['amppId'], m['curQty'], m['curValue']*100])
+        inventories = await dbconnector_wp('wp_inventory_get', rows=-1, values=[])
+        for inv in inventories:
+            device_is = next(d for d in devices_is if d['terId'] == inv['curTerId'])
+            await dbconnector_is.callproc('is_inventory_ins', rows=0, values=[device_is['terId'], device_is['terAddress'],
+                                                                              device_is['terDescription'], device_is['amppId'], inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], 0])
+
     except Exception as e:
         await logger.error(e)
         print(e)
