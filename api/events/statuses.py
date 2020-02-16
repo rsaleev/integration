@@ -37,9 +37,8 @@ class StatusListener:
         data = json.loads(incoming_msg)
         await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])])
         await asyncio.sleep(0.5)
+
     # dispatcher
-
-
     async def _dispatch(self):
         while True:
             await self.__amqpconnector.cbreceive(self._process)
