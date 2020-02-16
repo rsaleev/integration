@@ -13,7 +13,7 @@ class AsyncLogger:
 
     @classmethod
     async def getlogger(cls, log_file):
-        logger = JsonLogger(loop=asyncio.get_event_loop(), serializer_kwargs={"ensure_ascii": False})
+        logger = JsonLogger(loop=asyncio.get_event_loop(), serializer_kwargs={'ensure_ascii': False, 'indent': 4})
         logger.name = __name__
         handler = AsyncTimedRotatingFileHandler(
             filename=log_file,

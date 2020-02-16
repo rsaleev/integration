@@ -60,6 +60,7 @@ snmp_timeout = parser.getint("INTEGRATION", "snmp_poller_timeout")
 snmp_retries = parser.getint("INTEGRATION", "snmp_poller_retries")
 snmp_trap_host = parser.get("INTEGRATION", "snmp_receiver_host")
 snmp_trap_port = parser.getint("INTEGRATION", "snmp_receiver_port")
+snmp_debug = parser.getboolean("INTEGRATION", "snmp_debug")
 
 # AMQP
 amqp_user = parser.get("INTEGRATION", "amqp_user")

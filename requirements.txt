@@ -1,6 +1,0 @@
-aiomysql==0.0.20
-aio_pika==6.4.1
-aiologger==0.4.0
-nest_asyncio==1.2.1
-aiosnmp==0.2.2
-dataclasses==0.7

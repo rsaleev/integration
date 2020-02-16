@@ -61,6 +61,7 @@ async def get_places():
 
 @router.post('/rest/monitoring/places')
 async def upd_places(*, places: List[Places]):
+    tasks = BackgroundTasks()
     try:
         for index, place in enumerate(places):
             await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, index+1])

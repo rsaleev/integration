@@ -9,6 +9,7 @@ from api.snmp.poller import AsyncSNMPPoller
 from api.snmp.receiver import AsyncSNMPReceiver
 from api.events.statuses import StatusListener
 from api.events.places import PlacesListener
+from api.events.money import MoneyListener
 from api.icmp.poller import AsyncPingPoller
 from utils.asynclog import AsyncLogger
 from service import webservice
@@ -38,7 +39,7 @@ class Application:
         self.dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
         await self.logger.info(f"RDBS Integration Connection: {self.dbconnector_is.connected}")
         devices = await self.dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
-        # statuses listener process
+        statuses listener process
         statuses_listener = StatusListener()
         statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
         self.processes.append(statuses_listener_proc)
@@ -58,8 +59,7 @@ class Application:
         snmp_receiver = AsyncSNMPReceiver(devices)
         snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
         self.processes.append(snmp_receiver_proc)
-        webservice_proc = Process(target=webservice.run, name='webservice')
-        self.processes.append(webservice_proc)
+
         for p in self.processes:
             asyncio.ensure_future(self.logger.info(f'Starting process:{p.name}'))
             p.start()
@@ -76,7 +76,8 @@ class Application:
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    app = Application(loop)
-    loop.run_until_complete(app.start())
-    loop.run_forever()
+    #loop = asyncio.get_event_loop()
+    #app = Application(loop)
+    webservice.run()
+    # loop.run_until_complete(app.start())
+    # loop.run_forever()
