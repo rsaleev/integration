@@ -170,7 +170,7 @@ class CoinsHopper(Enum):
 
 class NotesEscrow(Enum):
     NO_ERROR = 0
-    JAMMED_NOTE = 1
+    JAMMED_NOTE_TRAP = 1
     COINS_LOW = 3
     JAMMED_NOTE = 5
     TIMEOUT = 9
