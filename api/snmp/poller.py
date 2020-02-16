@@ -68,8 +68,6 @@ class AsyncSNMPPoller:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
                                 elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
                                     await self.__amqconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=7)
-                                elif snmp_object.codename == "Command":
-                                    await self.__amqconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=9)
                                 else:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.snmp'], priority=4)
                     # handle SNMP exceptions
