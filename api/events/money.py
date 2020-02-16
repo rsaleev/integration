@@ -56,3 +56,9 @@ class MoneyListener:
                 continue
             else:
                 await asyncio.sleep(cfg.rdbs_polling_interval)
+
+    def run(self):
+        self.eventloop = asyncio.get_event_loop()
+        self.eventloop.run_until_complete(self._initialize())
+        self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_forever()
