@@ -5,67 +5,54 @@ from dataclasses import dataclass
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
-from configuration import wp_cnx, is_cnx, sys_log, amqp_host, amqp_password, amqp_user
 import json
+import configuration as cfg
 
 
 class MoneyListener:
 
-    def __init__(self):
+    def __init__(self, devices_l):
         self.__dbconnector_is: object = None
         self.__dbconnector_wp: object = None
         self.__amqpconnector: object = None
         self.__logger: object = None
         self.__loop: object = None
-        self.__amqp_receiver_status = bool
+        self.__devices = devices_l
         self.name = 'MoneyListener'
 
-    @property
-    def status(self):
-        if self.__amqpconnector.connected and self.__dbconnector_is.connected:
-            return True
-        else:
-            return False
-
-    async def _log_init(self):
-        self.__logger = await AsyncLogger().getlogger(sys_log)
+    # primary initialization of logging and connections
+    async def _initialize(self):
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({"module": self.name, "info": "Logging initialized"})
-        return self
-
-    async def _amqp_connect(self):
         await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
-        self.__amqpconnector = await AsyncAMQP(loop=self.eventloop,
-                                               user=amqp_user,
-                                               password=amqp_password,
-                                               host=amqp_host,
-                                               exchange_name='integration',
-                                               exchange_type='topic',
-                                               queue_name='statuses',
-                                               priority_queue=True,
-                                               binding='#').connect()
-        asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'AMQP Connection',
-                                                  'status': self.__amqpconnector.connected}))
-        return self
 
-    async def _sql_connect(self):
-        try:
-            self.__dbconnector_is = await AsyncDBPool(conn=is_cnx, loop=self.eventloop).connect()
-            if self.__dbconnector_is.connected:
-                self.__sql_status = True
-            else:
-                self.__sql_status = False
-            return self
-        except Exception as e:
-            self.__sql_status = False
-            await self.__logger.error(e)
-        finally:
-            return self
+        await self.__logger.info({"module": self.name, "info": "Establishing RDBS Integration Connection"})
+        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
+        asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'RDBS Integration Connection',
+                                                  'status': self.__dbconnector_is.connected}))
+        self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=self.eventloop).connect()
+        await self.__logger.info({"module": self.name, "info": "Establishing RDBS Wisepark Connection"})
+        self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=self.eventloop).connect()
+        asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'RDBS Wisepark Connection',
+                                                  'status': self.__dbconnector_wp.connected}))
+
+    async def _process_money(self, data: list):
+        for d in data:
+            asyncio.ensure_future(self.__dbconnector_is.callproc('is_money_upd', rows=0, values=[data['curTerId'], data['curChannelId'], data['curValue'], data['curQty']]))
+
+    async def _process_inventory(self, data: list):
+        for d in data:
+            asyncio.ensure_future(self.__dbconnector_is.callproc('is_inventory_upd', rows=0, values=[data['curTerId'], data['curChannelId'], data['curTotal']]))
 
     async def _dispatch(self):
         while True:
             try:
-                data = await self.__amqpconnector.receive()
-                asyncio.ensure_future(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])]))
+                money = await self.__dbconnector_wp.callproc('wp_money_get', rows=0, values=[])
+                await self._process_money(money)
+                inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=0, values=[None])
+                await self._process_inventory(inventories)
             except Exception as e:
-                asyncio.ensure_future(self.__logger.error(e))
+                asyncio.ensure_future(self.__logger.error(repr(e)))
                 continue
+            else:
+                await asyncio.sleep(cfg.rdbs_polling_interval)
