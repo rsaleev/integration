@@ -167,7 +167,7 @@ class AsyncPingPoller:
                 ping_object.ts = datetime.now().timestamp()
                 ping_object.value = await self._ping(device['terIp'])
                 await self.__amqp_connector.send(ping_object.data, persistent=True, keys=['status.online'], priority=1)
-            await asyncio.sleep(10)
+            await asyncio.sleep(cfg.snmp_timeout)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
