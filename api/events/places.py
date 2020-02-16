@@ -11,17 +11,20 @@ import json
 
 @dataclass
 class PlacesListener:
-    def __init__(self):
+    def __init__(self, devices_l):
         self.__dbconnector_wp: object = None
         self.__dbconnector_is: object = None
         self.__amqpconnector: object = None
         self.__logger: object = None
         self.__loop: object = None
         self.name = 'PlacesListener'
-        self.cmd = None
-        self.cmd_set = False
-        self.trap = None
-        self.trap_set = False
+        self.cmd_out_set = False
+        self.cmd_in_set = False
+        self.physchal_out_set = False
+        self.physchal_in_set = False
+        self.loop2_set = False
+        self.area = None
+        self.devices = devices_l
 
     @property
     def eventloop(self):
@@ -58,26 +61,25 @@ class PlacesListener:
         asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
         self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host,
                                                exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('places', bindings=['status.loop2', 'command.physchal.in', 'command.physchal.out'], durable=False)
+        await self.__amqpconnector.bind('places', bindings=['status.loop2', 'command.physchal.in', 'command.physchal.out', 'command.manual.open'], durable=True)
         return self
 
-    async def _process(self, incoming_msg):
-        data = json.loads(incoming_msg)
-        if data['codename'] == 'BarrierLoop2Status' and data['value'] == "OCCUPIED":
-            self.status = data
-            self.status_set = True
-            return self
-        elif data['codename'] in ['PhyschalIn', 'PhyschalOut']:
-            self.cmd = data
-            self.cmd_set = True
-            return self
+    # integration for AMPP
+
+    async def _process(self, data):
+        for d in data:
+            asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[data['areFreePark'], None, data['areId']]))
 
     async def _dispatch(self):
         while True:
-            places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
-            for p in places:
-                await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, p['areId']])
-            await asyncio.sleep(3)
+            try:
+                places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+                await self._process(places)
+            except Exception as e:
+                asyncio.ensure_future(self.__logger.error({'module': self.name, 'error': repr(e)}))
+                continue
+            else:
+                await asyncio.sleep(cfg.rdbs_polling_interval)
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
@@ -85,3 +87,4 @@ class PlacesListener:
         self.eventloop.run_until_complete(self._sql_connect())
         self.eventloop.run_until_complete(self._amqp_connect())
         self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_forever()
