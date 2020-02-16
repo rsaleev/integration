@@ -62,6 +62,8 @@ class AsyncSNMPReceiver:
                 snmp_object.ampp_id = device['amppId']
                 snmp_object.ampp_type = device['amppType']
                 snmp_object.device_ip = host
+                if cfg.snmp_debug:
+                    await self.__logger.debug(snmp_object.data)
                 if snmp_object.codename == 'BarrierLoop1Status':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=10)
                     await asyncio.sleep(0.2)
