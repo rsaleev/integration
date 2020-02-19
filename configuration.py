@@ -24,6 +24,8 @@ soap_password = parser.get("WISEPARK", "soap_password")
 soap_url = parser.get("WISEPARK", "soap_url")
 soap_timeout = parser.getint("WISEPARK", "soap_timeout")
 
+cashbox_limit = parser.getint("WISEPARK", "cashbox_limit")
+
 ### RDBS ###
 is_cnx = {"user": parser.get("INTEGRATION", "rdbs_user"),
           "password": parser.get("INTEGRATION", "rdbs_password"),

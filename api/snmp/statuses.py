@@ -193,7 +193,7 @@ class NotesReader(Enum):
     NO_ERROR = 0
     JAMMED_NOTE = 1
     COINS_LOW = 3
-    JAMMED_NOTE = 5
+    JAMMED_NOTE_TRAP = 5
     TIMEOUT = 9
     INCOMPLETE_PAYOUT = 10
     INCOMPLETE_FLOAT = 11

@@ -21,8 +21,8 @@ name = "control"
 
 
 class CommandRequest(BaseModel):
-    type: 'command'
-    error: int = 0
+    type: str = 'command'
+    error: int
     date_event: str
     came_device_id: int
     device_ip: Optional[str]
@@ -32,7 +32,7 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
-    type: 'command'
+    type: str = 'command'
     error: str
     device_type: Optional[str]
     came_device_id: Optional[str]

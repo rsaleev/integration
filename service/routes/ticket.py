@@ -6,6 +6,7 @@ import dateutil.parser as dp
 from starlette.background import BackgroundTask, BackgroundTasks
 import configuration as ws
 from service import settings as ws
+from aiomysql import OperationalError, InternalError, ProgrammingError
 
 
 router = APIRouter()
@@ -63,7 +64,7 @@ async def upd_ticket(ticket, operation):
                     tasks.add_task(ws.dbconnector_wp.callproc, 'wp_ticket_upd', rows=0, values=[ticket, None, False, False])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             else:
-                return Response(json.dumps({'error': 'FORBIDDEN', 'comment': f"Forbidden"}), status_code=403, media_type='application/json', background=task)
+                return Response(json.dumps({'error': 'FORBIDDEN', 'comment': f"Forbidden"}), status_code=403, media_type='application/json', background=tasks)
         except(OperationalError, ProgrammingError) as e:
             tasks.add_task(ws.logger.error, {'module': name, 'path': f'rest/monitoring/ticket/number/{ticket}/{operation}', 'error': repr(e)})
             code, description = e.args

@@ -9,7 +9,7 @@ import json
 import configuration as cfg
 
 
-class MoneyListener:
+class InventoryListener:
 
     def __init__(self, devices_l):
         self.__dbconnector_is: object = None
@@ -18,7 +18,31 @@ class MoneyListener:
         self.__logger: object = None
         self.__loop: object = None
         self.__devices = devices_l
-        self.name = 'MoneyListener'
+        self.name = 'CashboxListener'
+
+        class InventoryWarning:
+            def __init__(self, device_id, device_address, device_ip, device_type, ampp_id, ampp_type):
+                self.codename = 'Cashbox'
+                self.value = 'ALMOST_FULL'
+                self.__device_id: int = None
+                self.__device_address: int = None
+                self.__device_ip: str = None
+                self.__device_type: int = None
+                self.__ampp_id: int = None
+                self.__ampp_type: int = None
+                self.__ts = datetime.now()
+
+            @property
+            def data(self):
+                return {'device_id': self.__device_id,
+                        'device_address': self.__device_address,
+                        'device_type': self.__device_type,
+                        'codename': self.__codename,
+                        'value': self.__value,
+                        'ts': self.__ts,
+                        'ampp_id': self.__ampp_id,
+                        'ampp_type': self.__ampp_type,
+                        'device_ip': self.__device_ip}
 
     # primary initialization of logging and connections
     async def _initialize(self):
@@ -36,27 +60,8 @@ class MoneyListener:
         asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'RDBS Wisepark Connection',
                                                   'status': self.__dbconnector_wp.connected}))
 
-    async def _process_money(self, data: list):
+    async def _process_inventory(self, data: list):
         for d in data:
-            asyncio.ensure_future(self.__dbconnector_is.callproc('is_money_upd', rows=0, values=[data['curTerId'], data['curChannelId'], data['curValue'], data['curQty']]))
-
-    
-
-    async def _dispatch(self):
-        while True:
-            try:
-                money = await self.__dbconnector_wp.callproc('wp_money_get', rows=0, values=[])
-                await self._process_money(money)
-                inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=0, values=[None])
-                await self._process_inventory(inventories)
-            except Exception as e:
-                asyncio.ensure_future(self.__logger.error(repr(e)))
-                continue
-            else:
-                await asyncio.sleep(cfg.rdbs_polling_interval)
-
-    def run(self):
-        self.eventloop = asyncio.get_event_loop()
-        self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
-        self.eventloop.run_forever()
+            if d['storageCapacity'] == d['storageLimit']:
+                self.__amqpconnector.send()
+            self.__dbconnector_is.callproc('is_inventory_upd', rows=0, values=[data['curTerId'], data['curChannelId'], data['curTotal']]))

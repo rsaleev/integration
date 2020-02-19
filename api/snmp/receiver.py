@@ -73,6 +73,30 @@ class AsyncSNMPReceiver:
                 elif snmp_object.codename == 'General':
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.general'], priority=9)
                     await asyncio.sleep(0.2)
+                elif snmp_object.codename == 'UpperDoor' or snmp_object.codename == 'MiddleDoor':
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.door'], priority=9)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename in ['IOBoard2.Temperatute', 'IOBoard2.Temperature', 'IOBoard3.Temperature']:
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.temperature'], priority=9)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename in ['Roboticket1', 'TicketPrinter1']:
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=9)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename == 'BarrierStatus':
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier'], priority=10)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename in ['FiscalPrinterIssues', 'FiscalPrinterBD']:
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=10)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename == 'SmartPayout':
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout'], priority=10)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename in ['CoinsHopper1', 'CoinsHopper2', 'CoinsHopper3']:
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout'], priority=3)
+                    await asyncio.sleep(0.2)
+                elif snmp_object.codename in ['Coinbox']:
+                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout'], priority=10)
+                    await asyncio.sleep(0.2)
                 else:
                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.trap'], priority=8)
                     await asyncio.sleep(0.2)
