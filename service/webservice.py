@@ -17,6 +17,7 @@ from fastapi.security.api_key import APIKeyHeader, APIKey, APIKeyCookie
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 import secrets
+import datetime
 nest_asyncio.apply()
 
 
@@ -36,7 +37,7 @@ async def get_api_key(
     ts_key_header: str = Security(ts_key_header),
 ):
     secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
-    if api_key_header != secret:
+    if api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
         raise HTTPException(
             status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
         )

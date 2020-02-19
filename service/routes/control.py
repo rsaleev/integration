@@ -21,8 +21,8 @@ name = "control"
 
 
 class CommandRequest(BaseModel):
-    type: str = 'command'
-    error: int
+    type: str = "command"
+    error: Optional[int]
     date_event: str
     came_device_id: int
     device_ip: Optional[str]
@@ -32,13 +32,12 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
-    type: str = 'command'
-    error: str
+    type: str = "command"
+    error: Optional[str]
     device_type: Optional[str]
-    came_device_id: Optional[str]
+    came_device_id: str
     device_events_id: Optional[str]
     date_event: str
-    parking_number: Optional[str]
 
 
 class CommandType(Enum):
@@ -59,7 +58,7 @@ async def rem_control(*, request: CommandRequest):
     uid = uuid4()
     tasks = BackgroundTasks()
     response = CommandResponse(**request.dict(exclude_unset=True))
-    device = next((d for d in ws.devices if d['terAddress'] == request.came_device_id), None)
+    device = next((d for d in ws.devices if d['terId'] == request.came_device_id), None)
     if not device is None:
         ws.soapconnector.deviceid = device['terAddress']
         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": request.dict(exclude_unset=True)})
@@ -69,6 +68,7 @@ async def rem_control(*, request: CommandRequest):
             if request.command_number == 3:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='open')
                 if result:
+                    response.error = 0
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                         request.command_number).name, "response": response.dict(exclude_unset=True)})
@@ -86,6 +86,7 @@ async def rem_control(*, request: CommandRequest):
             elif request.command_number == 6:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='close')
                 if result:
+                    response.error = 0
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation":  CommandType(
                         request.command_number).name, "response": response.dict(exclude_unset=True)})
@@ -102,6 +103,7 @@ async def rem_control(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
             elif request.command_number == 9:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='lockedopen')
+                response.error = 0
                 if result:
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
@@ -120,6 +122,7 @@ async def rem_control(*, request: CommandRequest):
             elif request.command_number == 12:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='lockedopenoff')
                 if result:
+                    response.error = 0
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                         request.command_number).name, "response": response.dict(exclude_unset=True)})
@@ -137,6 +140,7 @@ async def rem_control(*, request: CommandRequest):
             elif request.command_number == 15:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='maintenanceon')
                 if result:
+                    response.error = 0
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                         request.command_number).name, "response": response.dict(exclude_unset=True)})
@@ -153,6 +157,7 @@ async def rem_control(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
             elif request.command_number == 18:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='maintenanceoff')
+                response.error = 0
                 if result:
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
@@ -170,6 +175,7 @@ async def rem_control(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
             elif request.command_number == 25:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='rebootsw')
+                response.error = 0
                 if result:
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
@@ -187,6 +193,7 @@ async def rem_control(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
             elif request.command_number == 30:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='closedoff')
+                response.error = 0
                 if result:
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
@@ -205,6 +212,7 @@ async def rem_control(*, request: CommandRequest):
             elif request.command_number == 31:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='closedall')
                 if result:
+                    response.error = 0
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                         request.command_number).name, "response": response.dict(exclude_unset=True)})
@@ -222,6 +230,7 @@ async def rem_control(*, request: CommandRequest):
             elif request.command_number == 32:
                 result = await ws.soapconnector.client.service.SetDeviceStatusHeader(sHeader=ws.soapconnector.header, sStatus='allout')
                 if result:
+                    response.error = 0
                     response.date_event = datetime.strftime(datetime.now(), '%d-%m-%Y %H:%M:%S')
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(
                         request.command_number).name, "response": response.dict(exclude_unset=True)})
