@@ -8,16 +8,14 @@ from aiomysql import IntegrityError
 
 
 async def app_init(eventloop):
-    logger = await AsyncLogger().getlogger(cfg.log)
-    logger.info("Establishing RDBS Wisepark Pool Connection...")
+    print("Establishing RDBS Wisepark Pool Connection...")
     dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=asyncio.get_running_loop()).connect()
-    logger.info(f"RDBS Integration Connection: {dbconnector_wp.connected}")
-    logger.info("Establishing RDBS Integration Pool Connection...")
+    print(f"RDBS Integration Connection: {dbconnector_wp.connected}")
+    print("Establishing RDBS Integration Pool Connection...")
     dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=asyncio.get_running_loop()).connect()
-    logger.info(f"RDBS Integration Connection: {dbconnector_is.connected}")
+    print(f"RDBS Integration Connection: {dbconnector_is.connected}")
     await dbconnector_is.callproc('is_clear', rows=0, values=[])
-    logger.info(f"Reading device mapping file")
-
+    print(f"Reading device mapping file")
     try:
         with open(cfg.device_mapping) as f:
             mapping = json.load(f)
@@ -60,18 +58,16 @@ async def app_init(eventloop):
             if p['areId'] == cp['area']:
                 await dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
         money = await dbconnector_wp.callproc('wp_money_get', rows=-1, values=[None])
-        logger.debug(money)
         for m in money:
             device_is = next(d for d in devices_is if d['terId'] == m['curTerId'])
             await dbconnector_is.callproc('is_money_ins', rows=0, values=[device_is['terId'], device_is['terAddress'], device_is['terDescription'], device_is['amppId'], m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']])
         inventories = await dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[])
-        logger.debug(inventories)
         for inv in inventories:
             device_is = next(d for d in devices_is if d['terId'] == inv['curTerId'])
             await dbconnector_is.callproc('is_inventory_ins', rows=0, values=[device_is['terId'], device_is['terAddress'],
                                                                               device_is['terDescription'], device_is['amppId'], inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], cfg.cashbox_limit])
     except Exception as e:
-        await logger.error(e)
+        print(e)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(app_init(loop))
