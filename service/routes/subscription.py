@@ -18,13 +18,13 @@ name = 'webservice_subscription'
 
 class Subscription(BaseModel):
     sub_id: Optional[int]
-    operation: Optional[str]
-    car_plate: str
-    card_uid: str
-    card_num: str
-    sub_from: datetime
-    sub_to: datetime
-    sub_name: str
+    sub_state: Optional[str]
+    car_plate: Optional[str]
+    card_uid: Optional[str]
+    card_num: Optional[str]
+    sub_from: Optional[datetime]
+    sub_to: Optional[datetime]
+    sub_name: Optional[str]
     sub_email: Optional[str]
     sub_phone: Optional[str]
     invalid_pass: Optional[str]
@@ -58,7 +58,7 @@ def converter(code):
         return came_code
 
 
-@router.get('/rest/monitoring/subscription')
+@router.get('/api/monitoring/subscription')
 async def get_subscriptions():
     tasks = BackgroundTasks()
     try:
@@ -69,7 +69,7 @@ async def get_subscriptions():
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
-@router.get('/rest/monitoring/subscription/plate/{value}')
+@router.get('/api/monitoring/subscription/plate/{value}')
 async def get_subscription_by_plate(value):
     tasks = BackgroundTasks()
     try:
@@ -80,7 +80,7 @@ async def get_subscription_by_plate(value):
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
-@router.get('/rest/monitoring/subscription/name/{value}')
+@router.get('/api/monitoring/subscription/name/{value}')
 async def get_subscription_by_name(value):
     tasks = BackgroundTasks()
     try:
@@ -91,7 +91,7 @@ async def get_subscription_by_name(value):
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
-@router.get('/rest/monitoring/subscription/cardcode/{data}')
+@router.get('/api/monitoring/subscription/cardcode/{data}')
 async def get_subscription_by_cardcode(value):
     tasks = BackgroundTasks()
     try:
@@ -102,7 +102,7 @@ async def get_subscription_by_cardcode(value):
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 #
-@router.get('/rest/monitoring/subscription/cardid/{data}')
+@router.get('/api/monitoring/subscription/cardid/{data}')
 async def get_subscription_by_cardid(value):
     tasks = BackgroundTasks()
     try:
@@ -122,7 +122,7 @@ async def get_subscription_by_cardid(value):
 
 
 # insert new record
-@router.put('/rest/monitoring/subscription')
+@router.put('/api/monitoring/subscription')
 async def add_subcription(subscription: Subscription):
     try:
         await ws.dbconnector_wp.callproc('sub_ins', rows=0, values=[subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
@@ -139,7 +139,7 @@ async def add_subcription(subscription: Subscription):
 
 
 # update subscription data
-@router.post('/rest/monitoring/subscription/{subid}')
+@router.post('/api/monitoring/subscription/{subid}')
 async def add_subcription(subid, subscription: Subscription):
     try:
         await ws.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
@@ -155,7 +155,7 @@ async def add_subcription(subid, subscription: Subscription):
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
 
 # delete subscription data. Data will not be deleted from table but values will be changed to use this record again through update
-@router.delete('/rest/monitoring/subscription/{subid}')
+@router.delete('/api/monitoring/subscription/{subid}')
 async def del_subscription(subid):
     try:
         await ws.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, None, 'rezerved', 'rezerved', None, None, 'rezerved',

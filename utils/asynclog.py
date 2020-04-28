@@ -17,10 +17,10 @@ class AsyncLogger:
         logger.name = __name__
         handler = AsyncTimedRotatingFileHandler(
             filename=log_file,
-            when=RolloverInterval.DAYS,
+            when=RolloverInterval.MIDNIGHT,
             interval=1,
             backup_count=31,
             encoding='utf-8')
-        handler.formatter = ExtendedJsonFormatter(default_msg_fieldname=LOGGED_AT_FIELDNAME)
+        handler.formatter = ExtendedJsonFormatter(default_msg_fieldname=LOGGED_AT_FIELDNAME, exclude_fields=[LINE_NUMBER_FIELDNAME, FILE_PATH_FIELDNAME, FUNCTION_NAME_FIELDNAME])
         logger.add_handler(handler)
         return logger

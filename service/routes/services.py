@@ -1,6 +1,6 @@
 from fastapi.routing import APIRouter
 import configuration as cfg
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 from pydantic import BaseModel, validator, ValidationError
 import json
 import re
@@ -37,15 +37,12 @@ async def get_services():
 async def get_service(service_name):
     try:
         service = await ws.dbconnector_is.callproc('is_services_get', rows=1, values=[service_name, None])
-        processes = await ws.dbconnector_is.callproc(f"{service_name}_processes_get", rows=-1, values=[None, None, None, None, None])
+        if not service is None:
+            processes = await ws.dbconnector_is.callproc(f"{service_name}_processes_get", rows=-1, values=[None, None, None, None, None])
         service['serviceProcesses'] = processes
-        return Response(json.dumps(service, default=str), status_code=200, media_type='application/json')
+        return JSONResponse(service, status_code=200)
     except (OperationalError, ProgrammingError, InternalError) as e:
-        code, description = e.args
-        if code == 1146:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
-        elif code == 1305:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+        return JSONResponse({'error': 'BAD_REQUEST'}, status_code=404)
 
 
 @router.get('/rest/monitoring/services/{service_name}/{operation}')
@@ -56,18 +53,17 @@ async def upd_services(service_name, operation):
         unit.load()
         if operation == 'stop':
             unit.Unit.Stop(b'replace')
-            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
+            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
         elif operation == 'start':
             unit.Unit.Start(f"{service_name}.service".encode())
-            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
+            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
         elif operation == 'restart':
             unit.Unit.Stop(b'replace')
             unit.Unit.Start(b'replace')
-            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
+            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
         elif operation == 'status':
-            pid = unit.Service.MainPID
-            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, default=str), status_code=200, media_type='application/json')
+            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
         else:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not supported'}), status_code=403, media_type='application/json')
+            return JSONResponse({'error': 'BAD_REQUEST'}, status_code=403)
     except DBusFileNotFoundError:
-        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=403, media_type='application/json')
+        return JSONResponse({'error': 'BAD_REQUEST'}, status_code=403)

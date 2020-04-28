@@ -9,6 +9,7 @@ import json
 import configuration as cfg
 from .mibs import polling_mibs
 import signal
+from uuid import uuid4
 
 
 class AsyncSNMPPoller:
@@ -58,11 +59,16 @@ class AsyncSNMPPoller:
                                 snmp_object.ampp_type = device['amppType']
                                 snmp_object.device_ip = device['terIp']
                                 snmp_object.snmpvalue = res.value
-                                if snmp_object.codename == "BarrierLoop1Status":
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
-                                elif snmp_object.codename == "BarrierLoop2Status":
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
-                                elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
+                                # if snmp_object.codename == "BarrierLoop1Status":
+                                #     snmp_object.uid = uuid4()
+                                #     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
+                                # elif snmp_object.codename == "BarrierLoop2Status":
+                                #     snmp_object.uid = uuid4()
+                                #    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
+                                # elif snmp_object.codename == 'BarrierStatus':
+                                #     snmp_object.uid = uuid4()
+                                #     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier'], priority=10)
+                                if snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=7)
                                 elif snmp_object.codename == 'General':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.general'], priority=9)
@@ -75,20 +81,18 @@ class AsyncSNMPPoller:
                                 elif (snmp_object.codename == 'RoboTicket1' or snmp_object.codename == 'RoboTicket2' or
                                       snmp_object.codename == 'TicketPtinter1' or snmp_object.codename == 'TicketPrinter2'):
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.printer'], priority=8)
-                                elif snmp_object.codename == 'AlmostOutOfPaper':
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=8)
+                                # elif snmp_object.codename == 'AlmostOutOfPaper':
+                                #     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=8)
                                 elif snmp_object.codename == 'IOBoards':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.ioboards'], priority=8)
-                                elif snmp_object.codename == 'PaperDevice1' or snmp_object.codename == 'PaperDevice2':
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=5)
+                                # elif snmp_object.codename == 'PaperDevice1' or snmp_object.codename == 'PaperDevice2':
+                                #     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=5)
                                 elif snmp_object.codename == 'IOBoard1.Temperature' or snmp_object.codename == 'IOBoard2.Temperature':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.temperature'], priority=2)
                                 elif snmp_object.codename == 'VoIP':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.voip'], priority=7)
-                                elif snmp_object.codename == 'TicketReader1' or snmp_object == 'TicketReader2':
+                                elif snmp_object.codename in ['TicketReader1', 'TicketReader2']:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.reader'], priority=7)
-                                elif snmp_object.codename == 'TicketPrinter1' or snmp_object == 'TicketPrinter2':
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.printer'], priority=7)
                                 elif snmp_object.codename == 'Coinbox':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.cashbox'], priority=9)
                                 elif snmp_object.codename in ['CubeHopper', 'CoinsReader', 'CoinsHoper1', 'CoinsHopper2', 'CoinsHopper3',
@@ -102,8 +106,6 @@ class AsyncSNMPPoller:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=8)
                                 elif snmp_object.codename == 'FiscalPrinterBD':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=8)
-                                elif snmp_object.codename == 'BarrierStatus':
-                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier'], priority=10)
                                 elif snmp_object.codename in ['12VBoard', '24VBoard', '24ABoard']:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.boards'], priority=3)
                                 elif snmp_object.codename == 'SmartPayout':
@@ -116,14 +118,39 @@ class AsyncSNMPPoller:
                     except (SnmpErrorNoSuchName, SnmpErrorResourceUnavailable, ValueError, SnmpTimeoutError) as e:
                         await asyncio.sleep(0.2)
                         pass
-                    except BaseException as e:
-                        asyncio.ensure_future(self.__logger.error({"module": self.name, "exception": repr(e)}))
-                        await asyncio.sleep(0.2)
-                        pass
-            await asyncio.sleep(5)
+
+   # graceful shutdown implementation
+    async def _handler(self, signal, loop):
+        # catch signal
+        await self.__logger.warning(f'{self.name} shutting down')
+        await self.__logger.shutdown()
+        await self.__amqpconnector.disconnect()
+        # stop loop
+        self.__eventloop.stop()
+        # cancel tasks
+        pending = asyncio.Task.all_tasks()
+        for task in pending:
+            task.cancel()
+            # Now we should await task to execute it's cancellation.
+            # Cancelled task raises asyncio.CancelledError that we can suppress:
+            with suppress(asyncio.CancelledError):
+                loop.run_until_complete(task)
 
     def run(self):
+        policy = asyncio.get_event_loop_policy()
+        policy.set_event_loop(policy.new_event_loop())
         self.eventloop = asyncio.get_event_loop()
-        self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
-        self.eventloop.run_forever()
+        # define signals
+        signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        # add signal handler to loop
+        for s in signals:
+            self.eventloop.add_signal_handler(
+                s, lambda s=s: asyncio.create_task(self._handler(s, self.eventloop)))
+        # try-except statement
+        try:
+            self.eventloop.run_until_complete(self._initialize())
+            self.eventloop.run_until_complete(self._dispatch())
+            self.eventloop.run_forever()
+        except:
+            self.eventloop.close()
+            os._exit(0)

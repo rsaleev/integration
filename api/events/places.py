@@ -37,10 +37,9 @@ class PlacesListener:
         self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=self.eventloop).connect()
         return self
 
-  
     async def _process(self, data):
         for d in data:
-            asyncio.ensure_future(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[d['areFreePark'], None, d['areId']]))
+            await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[d['areFreePark'], None, d['areId']])
 
     async def _dispatch(self):
         while True:

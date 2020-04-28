@@ -8,8 +8,7 @@ from utils.asyncamqp import AsyncAMQP
 import configuration as cfg
 import json
 from queue import Queue
-import nest_asyncio
-nest_asyncio.apply()
+
 
 
 class StatusListener:

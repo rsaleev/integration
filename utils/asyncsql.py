@@ -15,68 +15,59 @@ Returns:
 
 class AsyncDBPool():
 
-    def __init__(self, conn: dict, loop: None):
+    def __init__(self, conn: dict):
         self.conn = conn
         self.pool = None
         self.connected = False
-        self.loop = loop
 
     async def connect(self):
         while self.pool is None:
             try:
-                self.pool = await aiomysql.create_pool(**self.conn, loop=self.loop, autocommit=True)
+                self.pool = await aiomysql.create_pool(**self.conn, loop=asyncio.get_running_loop(), autocommit=True)
                 self.connected = True
                 return self
             except aiomysql.OperationalError as e:
                 code, description = e.args
                 if code == 2003 or 1053:
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.2)
                     continue
-                else:
-                    raise e
+            except asyncio.TimeoutError:
+                await asyncio.sleep(0.2)
+                continue
+
+    async def disconnect(self):
+        self.pool.terminate()
+        await self.pool.wait_closed()
 
     async def callproc(self, procedure: str,  rows: int, values: list = None):
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
-                    await cur.callproc(procedure, [*values])
                     result = None
-                    if rows == 1:
-                        result = await cur.fetchone()
-                    if rows > 1:
-                        result = await cur.fetchmany(rows)
-                    elif rows == -1:
-                        result = await cur.fetchall()
-                    elif rows == 0:
-                        pass
-                    await cur.close()
-                    return result
-        except aiomysql.OperationalError as e:
-            code, description = e.args
-            if code == 2003 or 1053:
-                await self.connect()
-            else:
-                raise
-
-    async def execute(self, stmt: str, rows: None, *args):
-        try:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor(aiomysql.DictCursor) as cur:
-                    await cur.execute(stmt, *args)
-                    result = None
-                    if rows == 1:
-                        result = await cur.fetchone()
-                    elif rows > 1:
-                        result = await cur.fetchmany(rows)
-                    elif rows == -1:
-                        result = await cur.fetchall()
-                    elif rows == 0:
-                        pass
-                    await cur.close()
-                    return result
-        except aiomysql.OperationalError as e:
-            code, description = e.args
-            if code == 2003 or 1053:
-                await self.connect()
-            else:
-                raise
+                    try:
+                        await cur.callproc(procedure, [*values])
+                        if rows == 1:
+                            result = await cur.fetchone()
+                        if rows > 1:
+                            result = await cur.fetchmany(rows)
+                        elif rows == -1:
+                            data = await cur.fetchall()
+                            if len(data) > 0:
+                                result = data
+                        elif rows == 0:
+                            pass
+                        await cur.close()
+                        return result
+                    except asyncio.TimeoutError:
+                        await asyncio.sleep(0.2)
+                        await self.connect()
+                    except aiomysql.OperationalError as e:
+                        code, description = e.args
+                        if code == 2003 or 1053:
+                            await asyncio.sleep(0.2)
+                            await self.connect()
+                        else:
+                            raise e
+        except:
+            await asyncio.sleep(0.2)
+            await self.connect()

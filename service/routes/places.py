@@ -10,13 +10,13 @@ import service.settings as ws
 from starlette.background import BackgroundTasks
 
 router = APIRouter()
-
 name = 'ws_places'
 
 
 class Places(BaseModel):
     type: str = 'places'
     parking_number: int
+    parking_area: int
     client_free: int
     client_busy: Optional[int]
     vip_client_free: int
@@ -43,12 +43,12 @@ async def get_places():
 
 
 @router.post('/rest/monitoring/places')
-async def upd_places(*, places: List[Places]):
+async def upd_places(*, places: Places):
     tasks = BackgroundTasks()
     try:
         for index, place in enumerate(places):
-            await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, index+1])
-            await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[place.client_free, index+1])
+            await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, places.parking_area])
+            await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[place.client_free, places.parking_area])
         return Response(status_code=200)
     except (ProgrammingError, OperationalError) as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})

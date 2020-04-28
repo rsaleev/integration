@@ -49,7 +49,6 @@ class InventoryListener:
         self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({"module": self.name, "info": "Logging initialized"})
         await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
-
         await self.__logger.info({"module": self.name, "info": "Establishing RDBS Integration Connection"})
         self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
         asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'RDBS Integration Connection',
@@ -64,4 +63,4 @@ class InventoryListener:
         for d in data:
             if d['storageCapacity'] == d['storageLimit']:
                 self.__amqpconnector.send()
-            self.__dbconnector_is.callproc('is_inventory_upd', rows=0, values=[data['curTerId'], data['curChannelId'], data['curTotal']]))
+            self.__dbconnector_is.callproc('is_inventory_upd', rows=0, values=[data['curTerId'], data['curChannelId'], data['curTotal']])

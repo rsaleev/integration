@@ -3,13 +3,16 @@ from configparser import RawConfigParser
 from datetime import datetime
 from pathlib import Path
 
-CONFIG_FILE = (str(Path(str(Path(__file__).parents[1]) + "/configuration/config.ini")))
+CONFIGURATION = str(Path(str(Path(__file__).parents[1]) + "/configuration/config.ini"))
+MAPPING = str(Path(str(Path(__file__).parents[1]) + "/configuration/mapping.json"))
+PLACES = str(Path(str(Path(__file__).parents[1]) + "/configuration/places.json"))
+TEMP = str(Path(str(Path(__file__).parents[0]) + "/tmp/"))
+IMAGES_PATH = str(Path(str(Path(__file__).parents[0]) + "/tmp/photos"))
+PLATES = str(Path(str(Path(__file__).parents[1])+"/tmp/plates"))
+METRO = str(Path(str(Path(__file__).parents[1])+"/resources/metro"))
+
 parser = RawConfigParser()
-parser.read(CONFIG_FILE)
-
-
-logger = object
-
+parser.read(CONFIGURATION)
 
 ### WISEPARK SERVER ###
 
@@ -23,8 +26,6 @@ soap_user = parser.get("WISEPARK", "soap_username")
 soap_password = parser.get("WISEPARK", "soap_password")
 soap_url = parser.get("WISEPARK", "soap_url")
 soap_timeout = parser.getint("WISEPARK", "soap_timeout")
-
-cashbox_limit = parser.getint("WISEPARK", "cashbox_limit")
 
 ### RDBS ###
 is_cnx = {"user": parser.get("INTEGRATION", "rdbs_user"),
@@ -44,18 +45,19 @@ wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
 rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
 
 ### AMPP ###
-device_mapping = str(Path(str(Path(__file__).parents[1]) + "/configuration/devices.json"))
-places_mapping = str(Path(str(Path(__file__).parents[1]) + "/configuration/places.json"))
 ampp_parking_id = parser.getint("AMPP", "parking_id")
-physically_challenged_total = parser.getint("AMPP", "physically_challenged_places")
+
+### METRO ###
+converter_url = parser.get("METRO", "info_url")
+passes_url = parser.get("METRO", "info_url")
+metro_timeout = parser.getint('METRO', "timeout")
+
 
 ### LOG FILES ###
 if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs"))):
     os.mkdir(str(Path(str(Path(__file__).parents[1]) + "/logs")))
-if not os.path.isdir(str(Path(str(Path(__file__).parents[1]) + "/logs/integration"))):
-    os.mkdir(str(Path(str(Path(__file__).parents[1]) + "/logs/integration")))
-log = (str(Path(str(Path(__file__).parents[1]) + "/logs/integration/sys.log")))
-log_debug = (str(Path(str(Path(__file__).parents[1]) + "/logs/integration/sys_debug.log")))
+log = (str(Path(str(Path(__file__).parents[1]) + "/logs/sys.log")))
+log_debug = (str(Path(str(Path(__file__).parents[1]) + "/logs/sys_debug.log")))
 # SNMP
 snmp_polling = parser.getint("INTEGRATION", "snmp_poller_interval")
 snmp_timeout = parser.getint("INTEGRATION", "snmp_poller_timeout")

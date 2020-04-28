@@ -9,7 +9,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.responses import Response, JSONResponse, PlainTextResponse
 from starlette.requests import Request
 from starlette.background import BackgroundTask, BackgroundTasks
-from service.routes import control, data, logs, places, services, statuses, subscription, ticket
+from service.routes import control, data, logs, places, services, statuses, subscription, ticket, converters
 import configuration as cfg
 from service import settings as ws
 import nest_asyncio
@@ -18,7 +18,6 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 import secrets
 import datetime
-nest_asyncio.apply()
 
 
 name = 'remote'
@@ -37,7 +36,7 @@ async def get_api_key(
     ts_key_header: str = Security(ts_key_header),
 ):
     secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
-    if api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
+    if api_key_header is None or api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
         raise HTTPException(
             status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
         )
@@ -71,6 +70,8 @@ app.include_router(services.router, dependencies=[Depends(get_api_key)])
 app.include_router(statuses.router, dependencies=[Depends(get_api_key)])
 app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
 app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
+#app.include_router(converters.router, dependencies=[Depends(get_api_key)])
+app.include_router(converters.router)
 
 
 @app.on_event('startup')
@@ -79,6 +80,9 @@ async def startup():
     await ws.dbconnector_is.connect()
     await ws.dbconnector_wp.connect()
     ws.devices = await ws.dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
+    wp_devices = await ws.dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
+    ws.autocashiers = [d for d in wp_devices if d['terType'] == 3]
+    ws.gates = [d for d in wp_devices if d['terType'] in [1, 2]]
     await ws.soapconnector.connect()
     await ws.amqpconnector.connect()
 
@@ -94,14 +98,18 @@ async def shutdown():
     await app.logger.shutdown()
 
 
-@app.get('/')
+@app.get('/', dependencies=[Depends(get_api_key)])
 async def homepage():
-    return app.description
+    return {'title': app.title,
+            'description': app.description,
+            'version': app.version}
 
 
-@app.get('/rdbs')
+@app.get('/status')
 async def rdbs(api_key: APIKey = Depends(get_api_key)):
-    return {'IS': ws.dbconnector_is.connected, 'WP': ws.dbconnector_wp.connected}
+    return {'Wisepark RDBS Connection': ws.dbconnector_wp.connected,
+            'Integration RDBS Connection': ws.dbconnector_is.connected,
+            'Wisepark SOAP Connection': ws.soapconnector.connected}
 
 
 @app.get("/openapi.json", tags=["documentation"])
@@ -111,7 +119,7 @@ async def get_open_api_endpoint(credentials: HTTPBasicCredentials = Depends(get_
     )
     return response
 
-#credentials: HTTPBasicCredentials = Depends(get_current_username)
+
 @app.get("/documentation", tags=["documentation"])
 async def get_documentation(credentials: HTTPBasicCredentials = Depends(get_current_username)):
     response = get_swagger_ui_html(openapi_url="/openapi.json", title="docs")

@@ -5,67 +5,65 @@ from utils.asyncsql import AsyncDBPool
 import configuration as cfg
 from datetime import datetime
 from aiomysql import IntegrityError
+from pprint import pprint
 
 
 async def app_init(eventloop):
+    print(cfg.CONFIGURATION)
     print("Establishing RDBS Wisepark Pool Connection...")
-    dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx, loop=asyncio.get_running_loop()).connect()
+    print(cfg.wp_cnx)
+    dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
     print(f"RDBS Integration Connection: {dbconnector_wp.connected}")
     print("Establishing RDBS Integration Pool Connection...")
-    dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=asyncio.get_running_loop()).connect()
+    dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
     print(f"RDBS Integration Connection: {dbconnector_is.connected}")
-    await dbconnector_is.callproc('is_clear', rows=0, values=[])
-    print(f"Reading device mapping file")
     try:
-        with open(cfg.device_mapping) as f:
-            mapping = json.load(f)
         devices = await dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
+        # print(devices)
         ampp_id_mask = cfg.ampp_parking_id * 100
-        await dbconnector_is.callproc('is_clear', rows=0, values=[])
+        f = open(cfg.MAPPING)
+        mapping = json.loads(f.read())
+        print("Allocating devices")
         for dm in mapping['devices']:
-            if dm['description'] == 'server':
-                await dbconnector_is.callproc('is_devices_ins', rows=0, values=[0, 0, dm['ter_type'], dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], 0,
-                                                                                cfg.server_ip, None, None, None, None,
-                                                                                dm.get('imager', None), dm.get('payonline', None), dm.get('uniteller', None)])
-            for d in devices:
-                if d['terAddress'] == dm['ter_addr']:
-                    await dbconnector_is.callproc('is_devices_ins', rows=0, values=[d['terId'], d['terAddress'], dm['ter_type'], dm['description'], ampp_id_mask+dm['ampp_id'], dm['ampp_type'], d['terIdArea'],
-                                                                                    d['terIPV4'], d['terCamPlate1'], d['terCamPlate2'], d['terCamPhoto1'], d['terCamPhoto2'],
-                                                                                    dm.get('imager', None), dm.get('payonline', None), dm.get('uniteller', None)])
-        devices_is = await dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
-        for di in devices_is:
-            if di['terType'] == 0:
-                for ds in mapping['statuses']['server']:
-                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
-                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
-            elif di['terType'] == 1:
-                for ds in mapping['statuses']['entry']:
-                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
-                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
-            elif di['terType'] == 2:
-                for ds in mapping['statuses']['exit']:
-                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
-                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
-            elif di['terType'] == 3:
-                for ds in mapping['statuses']['autocash']:
-                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[di['terId'], di['terAddress'],
-                                                                                   di['terType'], di['terDescription'], di['terIp'], di['amppId'], di['amppType'], ds, ''])
-
+            if dm['ter_id'] == 0:
+                await dbconnector_is.callproc('is_devices_ins', rows=0, values=[0, 0, 0, dm['description'], ampp_id_mask+dm['ampp_id'], 1, 1, cfg.server_ip])
+                for s in dm['statuses']:
+                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[0, s])
+            elif dm['ter_id'] > 0:
+                dd = next(d for d in devices if d['terId'] == dm['ter_id'])
+                await dbconnector_is.callproc('is_devices_ins', rows=0, values=[dd['terId'], dd['terAddress'], dd['terType'], dm['description'], ampp_id_mask+dm['ampp_id'], 1, 1, dd['terIPV4']])
+                for s in dm['statuses']:
+                    await dbconnector_is.callproc('is_status_ins', rows=0, values=[dd['terId'], s])
+                if dd['terType'] in [1, 2]:
+                    await dbconnector_is.callproc('is_columns_ins', rows=0, values=[dd['terId'], dd['terAddress'], dd['terType'], dd['terCamPlate'], dd['terCamPhoto1'], dd['terCamPhoto2']])
+        print("Devices allocation done")
+        print("Allocating places")
         places = await dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
-        with open(cfg.places_mapping) as f:
-            mapped_places = json.load(f)
-        for cp, p in zip(mapped_places['challenged'], places):
-            if p['areId'] == cp['area']:
-                await dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areDescription'], p['areTotalPark'], p['areFreePark'], cp['total']])
+        # types:
+        #  1 - commercial places
+        #  2 - physically challenged places
+        #  3 - subscription places
+        for p in places:
+            await dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], p['areTotalPark'], p['areFreePark'], p['areType']])
+        # zone for physically challenged places - type 2
+        await dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'], 0, 0, 2])
+        print("Allocating inventories")
         money = await dbconnector_wp.callproc('wp_money_get', rows=-1, values=[None])
-        for m in money:
-            device_is = next(d for d in devices_is if d['terId'] == m['curTerId'])
-            await dbconnector_is.callproc('is_money_ins', rows=0, values=[device_is['terId'], device_is['terAddress'], device_is['terDescription'], device_is['amppId'], m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']])
+        if not money is None:
+            for m in money:
+                device_wp = next((d for d in devices if d['terId'] == m['curTerId']), None)
+                device_is = next((dm for dm in mapping['devices'] if dm['ter_id'] == m['curTerId']), None)
+                if not device_wp is None and not device_is is None:
+                    await dbconnector_is.callproc('is_money_ins', rows=0, values=[m['curTerId'], device_wp['terAddress'], device_is['description'], device_is['ampp_id'], m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']])
         inventories = await dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[])
-        for inv in inventories:
-            device_is = next(d for d in devices_is if d['terId'] == inv['curTerId'])
-            await dbconnector_is.callproc('is_inventory_ins', rows=0, values=[device_is['terId'], device_is['terAddress'],
-                                                                              device_is['terDescription'], device_is['amppId'], inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], cfg.cashbox_limit])
+        if not inventories is None:
+            for inv in inventories:
+                device_wp = next((d for d in devices if d['terId'] == inv['curTerId']), None)
+                device_is = next((dm for dm in mapping['devices'] if dm['ter_id'] == inv['curTerId']), None)
+                if not device_wp is None and not device_is is None:
+                    await dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'], device_wp['terAddress'],
+                                                                                      device_is['description'], device_is['ampp_id'], inv['curChannelId'], inv['curChannelDescr'], device_is['capacity'], device_is['limit']])
+        print("Inventories allocating done")
     except Exception as e:
         print(e)
 

@@ -21,6 +21,10 @@ class SNMPObject:
         self.__ampp_id: int = None
         self.__ampp_type: int = None
         self.__ts = datetime
+        self.__keyword: str = None
+        # default value
+        self.__act_uid: str = "00000000-00000000-00000000-00000000"
+        self.__tra_uid: str = "00000000-00000000-00000000-00000000"
 
     @property
     def device_id(self):
@@ -130,12 +134,38 @@ class SNMPObject:
         return self.__ts
 
     @property
+    def act_uid(self):
+        return self.__act_uid
+
+    @act_uid.setter
+    def act_uid(self, value):
+        self.__act_uid = str(value)
+
+    @act_uid.getter
+    def act_uid(self):
+        return self.__act_uid
+
+    @property
+    def tra_uid(self):
+        return self.__act_uid
+
+    @tra_uid.setter
+    def tra_uid(self, value):
+        self.__tra_uid = str(value)
+
+    @tra_uid.getter
+    def tra_uid(self):
+        return self.__tra_uid
+
+    @property
     def data(self):
         return {'device_id': self.device_id,
                 'device_address': self.device_address,
                 'device_type': self.device_type,
                 'codename': self.codename,
                 'value': self.snmpvalue,
+                'act_uid': self.act_uid,
+                'tra_uid': self.tra_uid,
                 'ts': self.ts,
                 'ampp_id': self.ampp_id,
                 'ampp_type': self.ampp_type,
@@ -173,10 +203,11 @@ receiving_mibs = [
     SNMPObject('FiscalPrinterIssues', '.1.3.6.1.4.1.40383.1.2.1.11003.2.2', forced_value='ALMOST_OUT_OF_PAPER').instance,
     SNMPObject('FiscalPrinterBD', '.1.3.6.1.4.1.40383.1.2.1.11003.2.3', forced_value='MEMORY_IS_FULL').instance,
     SNMPObject('SmartPayout', '.1.3.6.1.4.1.40383.1.2.2.116', forced_value='JAMMED_NOTE').instance,
-    SNMPObject('PaymentStatus', '.1.3.6.1.4.1.40383.1.2.3.3').instance,
+    SNMPObject('PaymentStatus', '.1.3.6.1.4.1.40383.1.2.3.3', status_map=PaymentStatus).instance,
     SNMPObject('PaymentMoneyType', '.1.3.6.1.4.1.40383.1.2.3.1', status_map=PaymentType).instance,
     SNMPObject('PaymentCardType', '.1.3.6.1.4.1.40383.1.2.3.2', status_map=PaymentCardType).instance,
-    SNMPObject('PaymentAmount', '.1.3.6.1.4.1.40383.1.2.3.5').instance
+    SNMPObject('PaymentAmount', '.1.3.6.1.4.1.40383.1.2.3.5').instance,
+    SNMPObject('Loop1Reverse', '1.3.6.1.4.1.40383.1.2.3.4').instance
 ]
 
 polling_mibs = [

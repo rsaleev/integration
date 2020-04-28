@@ -51,6 +51,12 @@ class CommandType(Enum):
     CLOSEDOFF = 30
     CLOSEDALL = 31
     OPENALL = 32
+    OPENALLOFF = 33
+
+
+@router.get('/rest/control')
+async def rem_control_info():
+    JSONResponse
 
 
 @router.post('/rest/control')
@@ -246,7 +252,7 @@ async def rem_control(*, request: CommandRequest):
                         {'uid': str(uid), 'response': response.dict(exclude_unset=True)}), datetime.now()])
                     return Response(json.dumps(response.dict(exclude_unset=True), ensure_ascii=False), status_code=200, media_type='application/json', background=tasks)
 
-        except (TransportError, TimeoutError, ClientError):
+        except (TransportError, TimeoutError, ClientError, asyncio.TimeoutError):
             # reconnect to service
             await ws.soapconnector.connect()
         except KeyError as e:

@@ -32,6 +32,9 @@ class AsyncSOAP:
             except:
                 continue
 
+    async def disconnect(self):
+        await self.__transport.session.close()
+
     # Exclusive header for CAMAE SOAP service
     # Device is always 0 to mimic server request
 

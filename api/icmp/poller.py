@@ -9,8 +9,6 @@ from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncamqp import AsyncAMQP
 import aioping
-import nest_asyncio
-nest_asyncio.apply()
 
 
 class AsyncPingPoller:
@@ -140,34 +138,36 @@ class AsyncPingPoller:
     async def _log_init(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
-        return self
-
-    async def _amqp_connect(self):
-        asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"}))
+        await self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"})
         self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
-        asyncio.ensure_future(self.__logger.info({"module": self.name, "info": "RabbitMQ connection", "status": self.__amqp_connector.connected}))
+        await self.__logger.info({"module": self.name, "info": "RabbitMQ connection", "status": self.__amqp_connector.connected})
         return self.__amqp_connector
 
     async def _ping(self, hostname):
         try:
-            await aioping.ping(hostname, timeout=10)
+            await aioping.ping(hostname, timeout=cfg.snmp_timeout)
             return 'ONLINE'
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             return 'OFFLINE'
+        except asyncio.CancelledError:
+            pass
 
     async def _dispatch(self):
         while True:
-            for device in self.__devices:
-                ping_object = self.NetworkStatus()
-                ping_object.device_id = device['terId']
-                ping_object.device_type = device['terType']
-                ping_object.device_ip = device['terIp']
-                ping_object.ampp_id = device['amppId']
-                ping_object.ampp_type = device['amppType']
-                ping_object.ts = datetime.now().timestamp()
-                ping_object.value = await self._ping(device['terIp'])
-                await self.__amqp_connector.send(ping_object.data, persistent=True, keys=['status.online'], priority=1)
-            await asyncio.sleep(cfg.snmp_timeout)
+            try:
+                for device in self.__devices:
+                    ping_object = self.NetworkStatus()
+                    ping_object.device_id = device['terId']
+                    ping_object.device_type = device['terType']
+                    ping_object.device_ip = device['terIp']
+                    ping_object.ampp_id = device['amppId']
+                    ping_object.ampp_type = device['amppType']
+                    ping_object.ts = datetime.now().timestamp()
+                    ping_object.value = await self._ping(device['terIp'])
+                    await self.__amqp_connector.send(ping_object.data, persistent=True, keys=['status.online'], priority=1)
+                await asyncio.sleep(cfg.snmp_polling)
+            except asyncio.CancelledError:
+                pass
 
     def run(self):
         self.eventloop = asyncio.get_event_loop()
