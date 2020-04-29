@@ -22,56 +22,55 @@ import datetime
 
 name = 'remote'
 
-API_KEY = "thenb!oronaal_lazo57tathethomenasas"
-API_KEY_NAME = "token"
-TIMESTAMP = "ts"
+# API_KEY = "thenb!oronaal_lazo57tathethomenasas"
+# API_KEY_NAME = "token"
+# TIMESTAMP = "ts"
 
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-ts_key_header = APIKeyHeader(name=TIMESTAMP, auto_error=False)
-api_key_cookie = APIKeyCookie(name=API_KEY_NAME, auto_error=False)
-
-
-async def get_api_key(
-    api_key_header: str = Security(api_key_header),
-    ts_key_header: str = Security(ts_key_header),
-):
-    secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
-    if api_key_header is None or api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
-        raise HTTPException(
-            status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
-        )
-
-security = HTTPBasic()
+# api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+# ts_key_header = APIKeyHeader(name=TIMESTAMP, auto_error=False)
+# api_key_cookie = APIKeyCookie(name=API_KEY_NAME, auto_error=False)
 
 
-def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = 'admin'
-    correct_password = API_KEY
-    if not (correct_username and correct_password):
-        raise HTTPException(
-            status_code=HTTP_401_UNAUTHORIZED,
-            detail="Incorrect credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+# async def get_api_key(
+#     api_key_header: str = Security(api_key_header),
+#     ts_key_header: str = Security(ts_key_header),
+# ):
+#     secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
+#     if api_key_header is None or api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
+#         raise HTTPException(
+#             status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
+#         )
+
+# security = HTTPBasic()
 
 
-security = HTTPBasic()
+# def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
+#     correct_username = 'admin'
+#     correct_password = API_KEY
+#     if not (correct_username and correct_password):
+#         raise HTTPException(
+#             status_code=HTTP_401_UNAUTHORIZED,
+#             detail="Incorrect credentials",
+#             headers={"WWW-Authenticate": "Basic"},
+#         )
+
 
 app = FastAPI(title="Remote management Module",
               description="Wisepark Monitoring and Remote Management Module",
               version="0.0.1", debug=cfg.asgi_debug,
               docs_url=None, redoc_url=None, openapi_url=None)
 
-app.include_router(control.router, dependencies=[Depends(get_api_key)])
-app.include_router(data.router, dependencies=[Depends(get_api_key)])
-app.include_router(logs.router, dependencies=[Depends(get_api_key)])
-app.include_router(places.router, dependencies=[Depends(get_api_key)])
-app.include_router(services.router, dependencies=[Depends(get_api_key)])
-app.include_router(statuses.router, dependencies=[Depends(get_api_key)])
-app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
-app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
+# app.include_router(control.router, dependencies=[Depends(get_api_key)])
+# app.include_router(data.router, dependencies=[Depends(get_api_key)])
+# app.include_router(logs.router, dependencies=[Depends(get_api_key)])
+# app.include_router(places.router, dependencies=[Depends(get_api_key)])
+# app.include_router(services.router, dependencies=[Depends(get_api_key)])
+# app.include_router(statuses.router, dependencies=[Depends(get_api_key)])
+# app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
+#app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
 #app.include_router(converters.router, dependencies=[Depends(get_api_key)])
 app.include_router(converters.router)
+app.include_router(ticket.router)
 
 
 @app.on_event('startup')
@@ -83,8 +82,8 @@ async def startup():
     wp_devices = await ws.dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
     ws.autocashiers = [d for d in wp_devices if d['terType'] == 3]
     ws.gates = [d for d in wp_devices if d['terType'] in [1, 2]]
-    await ws.soapconnector.connect()
-    await ws.amqpconnector.connect()
+    # await ws.soapconnector.connect()
+    # await ws.amqpconnector.connect()
 
 
 @app.on_event('shutdown')
@@ -98,7 +97,7 @@ async def shutdown():
     await app.logger.shutdown()
 
 
-@app.get('/', dependencies=[Depends(get_api_key)])
+@app.get('/')
 async def homepage():
     return {'title': app.title,
             'description': app.description,
@@ -106,31 +105,31 @@ async def homepage():
 
 
 @app.get('/status')
-async def rdbs(api_key: APIKey = Depends(get_api_key)):
+async def rdbs():
     return {'Wisepark RDBS Connection': ws.dbconnector_wp.connected,
             'Integration RDBS Connection': ws.dbconnector_is.connected,
             'Wisepark SOAP Connection': ws.soapconnector.connected}
 
 
-@app.get("/openapi.json", tags=["documentation"])
-async def get_open_api_endpoint(credentials: HTTPBasicCredentials = Depends(get_current_username)):
-    response = JSONResponse(
-        get_openapi(title="OpenAPI Documentation and Test", version="0.1", routes=app.routes)
-    )
-    return response
+# @app.get("/openapi.json", tags=["documentation"])
+# async def get_open_api_endpoint(credentials: HTTPBasicCredentials = Depends(get_current_username)):
+#     response = JSONResponse(
+#         get_openapi(title="OpenAPI Documentation and Test", version="0.1", routes=app.routes)
+#     )
+#     return response
 
 
-@app.get("/documentation", tags=["documentation"])
-async def get_documentation(credentials: HTTPBasicCredentials = Depends(get_current_username)):
-    response = get_swagger_ui_html(openapi_url="/openapi.json", title="docs")
-    response.set_cookie(
-        API_KEY_NAME,
-        value=api_key_header,
-        httponly=True,
-        max_age=1800,
-        expires=1800,
-    )
-    return response
+# @app.get("/documentation", tags=["documentation"])
+# async def get_documentation(credentials: HTTPBasicCredentials = Depends(get_current_username)):
+#     response = get_swagger_ui_html(openapi_url="/openapi.json", title="docs")
+#     response.set_cookie(
+#         API_KEY_NAME,
+#         value=api_key_header,
+#         httponly=True,
+#         max_age=1800,
+#         expires=1800,
+#     )
+#     return response
 
 
 def run():
