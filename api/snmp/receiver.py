@@ -61,6 +61,7 @@ class AsyncSNMPReceiver:
                     snmp_object.device_id = device['terId']
                     snmp_object.device_address = device['terAddress']
                     snmp_object.device_type = device['terType']
+                    snmp_object.device_area = device['areaId']
                     snmp_object.ampp_id = device['amppId']
                     snmp_object.ampp_type = device['amppType']
                     snmp_object.device_ip = host
