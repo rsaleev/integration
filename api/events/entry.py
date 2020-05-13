@@ -1,35 +1,29 @@
 
-from utils.asyncsql import AsyncDBPool
-from utils.asynclog import AsyncLogger
-from utils.asyncamqp import AsyncAMQP
-from utils.asyncsoap import AsyncSOAP
-import configuration as cfg
 import asyncio
-import datetime
+from datetime import datetime
 import json
 import cv2
 import base64
 import functools
 import uuid
 import signal
-from contextlib import suppress
 import os
+from utils.asyncsql import AsyncDBPool
+from utils.asynclog import AsyncLogger
+from utils.asyncamqp import AsyncAMQP
+from utils.asyncsoap import AsyncSOAP
+import configuration as cfg
 
 
 class EntryListener:
-    def __init__(self, device_l: list):
+    def __init__(self):
         self.__dbconnector_wp: object = None
-        self.__soapconector_wp: object = None
+        self.__soapconnector_wp: object = None
         self.__amqpconnector: object = None
         self.__logger: object = None
-        self.__loop: object = None
-        self.__devices = device_l
-        self.name = 'PlacesListener'
-        # vars
-        self.__image1 = None
-        self.__image2 = None
-        self.__plate = None
-        self.__event = None
+        self.__eventloop: object = None
+        self.__eventsignal: bool = False
+        self.name = 'EntryListener'
 
     @property
     def eventloop(self):
@@ -43,24 +37,43 @@ class EntryListener:
     def eventloop(self):
         return self.__eventloop
 
+    @property
+    def eventsignal(self):
+        return self.__eventsignal
+
+    @eventsignal.setter
+    def eventsignal(self, v):
+        return self.__eventsignal
+
+    @eventsignal.getter
+    def eventsignal(self):
+        return self.__eventsignal
+
     async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
-        await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
-        await self.__logger.info({'module': self.name, 'info': 'Establishing Integration RDBS Pool Connection'})
-        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
-        await self.__logger.info({'module': self.name, 'info': f'Integration RDBS Connection: {self.__dbconnector_wp.connected}'})
-        await self.__logger.info({'module': self.name, 'info': 'Establishing Wisepark RDBS Pool Connection'})
-        self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        await self.__logger.info({'module': self.name, 'info': f'Wisepark RDBS Connection: {self.__dbconnector_wp.connected}'})
-        await self.__logger.info({'module': self.name, 'info': 'Establishing Wisepark SOAP Connection'})
-        self.__soapconector_wp = await AsyncSOAP(cfg.soap_user, cfg.soap_password, cfg.object_id, cfg.soap_timeout, cfg.soap_url).connect()
-        await self.__logger.info({'module': self.name, 'info': f'Wisepark SOAP Connection: {self.__soapconnector_wp.connected}'})
-        await self.__logger.info({'module': self.name, 'info': 'Establishing AMQP Connection'})
-        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('statuses', ['status.entry.loop1', 'status.entry.loop2', 'status.entry.barrier', 'status.autocash.lostticket'])
-        await self.__logger.info({'module': self.name, 'info': f'AMQP Connection: {self.__amqpconnector.connected}'})
+        await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
+        connections_tasks = []
+        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
+        connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
+        connections_tasks.append(AsyncSOAP(login=cfg.soap_user, password=cfg.soap_password, parking_id=cfg.object_id, timeout=cfg.soap_timeout, url=cfg.soap_url).connect())
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect())
+        self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
+        await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.finished'], durable=True)
+        await self.__logger.info({'module': self.name, 'info': 'Started'})
         return self
 
+    async def _capture_plate(self, ter_id):
+        try:
+            data = await self.__soapconnector_wp.execute('GetPlate', header=True, device=ter_id,  wTerId=ter_id)
+            return data
+        except:
+            data['rConfidence'] = 0
+            data['rImage'] = None
+            return data
+        finally:
+            await asyncio.sleep(0.2)
+
+    # blocking operation
     def _get_photo(self, ip):
         cap = cv2.VideoCapture(f'rtsp://{ip}/axis-media/media.amp')
         if cap.isOpened():
@@ -72,126 +85,116 @@ class EntryListener:
 
     # asyncio implementation
     async def _capture_photo(self, ip):
-        try:
-            data = await self.__loop.run_in_executor(None, functools.partial(self._capture, (ip,)))
-            return data
-        except:
-            return None
+        data = await self.eventloop.run_in_executor(None, functools.partial(self._get_photo, (ip)))
+        return data
 
-    async def _capture_plate(self, ter_id):
-        try:
-            self.__soapconector_wp.device = 0
-            data = await self.__soapconnector_wp.client.service.GetPlate(sHeader=self.__soapconnector_wp.header,
-                                                                         wTerId=ter_id)
-            if data['rSuccess']:
-                return data
-            else:
-                return None
-        except:
-            return None
-
-   # callback
     async def _process(self, redelivered, key, data):
-        if not redelivered:
-            device = await self.__dbconnector_is.callproc('is_column_get', row=1, value=[data['device_address']])
-            # 1st message loop 1 status
-            if data['codename'] == 'BarrierLoop1Status' and data['value'] == 'OCCUPIED':
-                images = []
-                # defeault
-                plate_img = None
-                plate_accuracy = None
-                images.append(self._capture_plate(device['terId']))
-                images.append(self._capture_photo(device['camPhoto1']))
-                plate, photo = asyncio.gather(*images)
-                # ensure plate result
-                if not plate is None:
-                    plate_img = plate['rImage']
-                    plate_accuracy = plate['rConfidence']
-                # with loop1 act uid
-                await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], None, None, datetime.now()])
-            # 2nd message barrier opened
-            elif data['codename'] == 'BarrierStatus' and data['value'] == 'OPENED':
-                transit_data = await self.__dbconnector_wp.сallproc('wp_entry_get', rows=1, values=[data['device_id']])
-                # with barroer act uid
-                await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], None, None, None, None, data['act_uid'], transit_data, datetime.now()])
-            # 2nd possible message loop 1 reversed car
-            elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
-                # check if temp data is stored and delete record
-                temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
-                if not temp_data is None and data['ts'].timestamp() - temp_data['ts'] <= 500:
-                    await self.__dbconnector_is.callproc('is_entry_del', rows=0, values=[temp_data['transactionUID']])
-            # 3rd message loop 2 status
-            elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 1:
-                # check if camera #2 is bound to column
-                photo = None
-                if not device['camPhoto2'] is None:
-                    photo = await self._capture_photo(data['camPhoto2'])
-                temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
-                terminal = next(device['amppId'] for device in self.__device if device['terAddress'] == data['ter_address'])
-                if not temp_data is None and data['ts'].timestamp() - temp_data['ts'] <= 500:
-                    # ensure transaction data
-                    if temp_data['transactionData'] is None:
-                        # re-fetch data from DB
-                        transit_data = await self.__dbconnector_wp.сallproc('wp_entry_get', rows=1, values=[data['device_id']])
-                        msg = {'transacation_uid': data['tra_uid'],
-                               'plate_img': temp_data['plateImage'],
-                               'plate_act_uid': temp_data['loop1ActUID'],
-                               'photo_l': temp_data['lPhotoImage'],
-                               'photo_l_act_uid': temp_data['loop1ActUID'],
-                               'photo_r': photo,
-                               'photo_r_act_uid': data['act_uid'],
-                               'data': transit_data}
-                        await self.__amqpconnector.send(data=msg, persistent=True, keys=['entry'], priority=1)
-                    # process message to exchange
-                    else:
-                        msg = {'transacation_uid': data['tra_uid'],
-                               'plate_img': temp_data['plateImage'],
-                               'plate_act_uid': temp_data['loop1ActUID'],
-                               'photo_l': temp_data['lPhotoImage'],
-                               'photo_l_act_uid': temp_data['loop1ActUID'],
-                               'photo_r': photo,
-                               'photo_r_act_uid': data['loop2ActUID'],
-                               'data': temp_data['transactionData']}
-                        await self.__amqpconnector.send(data=msg, persistent=True, keys=['entry'], priority=1)
+        try:
+            if not redelivered:
+                # check message keys
+                # casual parking entry
+                if key in ['status.loop1.entry', 'status.loop2.entry', 'status.barrier.entry']:
+                    device = await self.__dbconnector_is.callproc('is_column_get', rows=1, values=[data['device_id']])
+                    if data['codename'] == 'BarrierLoop1Status' and data['value'] == 'OCCUPIED':
+                        images = []
+                        # defeault
+                        images.append(self._capture_plate(device['terId']))
+                        if not device['camPhoto1'] is None and device['camPhoto1'] != '':
+                            images.append(self._capture_photo(device['camPhoto1']))
+                            # suppress exception
+                            plate, photo = await asyncio.gather(*images, return_exceptions=True)
+                            plate_accuracy = plate['rConfidence']
+                            plate_img = plate['rImage'] if plate_accuracy > 0 else None
+                            await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
+                        else:
+                            plate, _ = await asyncio.gather(*images)
+                            plate_accuracy = plate['rConfidence']
+                            plate_img = plate['rImage'] if plate_accuracy > 0 else None
+                            await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
+                    # 2nd message barrier opened
+                    elif data['codename'] == 'BarrierStatus' and data['value'] == 'OPENED':
+                        transit_data = await self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id']])
+                        # with barrier act uid
+                        await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], data['act_uid'], transit_data['transitionUID'], json.dumps(transit_data, default=str), datetime.now()])
+                    # 2nd  possible message loop 1 reversed car
+                    elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
+                        # check if temp data is stored and delete record
+                        temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
+                        if not temp_data is None and data['ts'].timestamp() - temp_data['ts'] <= 500:
+                            await self.__dbconnector_is.callproc('is_entry_del', rows=0, values=[temp_data['transactionUID']])
+                    # 3rd message loop 2 status
+                    elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 'OCCUPIED':
+                        # check if camera #2 is bound to column
+                        photo = None
+                        if not device['camPhoto2'] is None and device['camPhoto2'] != '':
+                            photo = await self._capture_photo(device['camPhoto2'])
+                        await self.__dbconnector_is.callproc('is_entry_loop2_ins', rows=0, values=[data['device_address'], data['act_uid'], photo, datetime.now()])
+                        temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
+                        temp_data['ampp_id'] = data['ampp_id']
+                        temp_data['ampp_type'] = data['ampp_type']
+                        # get services for those entry data must be sent
+                        services = await self.__dbconnector_is.callproc('is_services_get', rows=-1, values=[None, 1, None, 1, None, None, None, None])
+                        keys = [f"{s['serviceName']}.entry" for s in services]
+                        await self.__amqpconnector.send(data=temp_data, persistent=True, keys=keys, priority=1)
+                # possible lost ticket entry
+                elif key == 'status.entry.payment':
+                    if data['codename'] == 'PaymentStatus' and data['value'] == 'FINISHED_WITH_SUCCESS':
+                        # try to fetch data from DB
+                        transit_data = await self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id']])
+                        if not transit_data is None and transit_data['transactionType'] == 'LOST':
+                            tasks = []
+                            # add to table
+                            await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], None, None, None, None, datetime.now()])
+                            # simulate
+                            await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], None, transit_data['transactionUID'], json.dumps(transit_data, default=str), datetime.now()])
+                            temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
+                            temp_data['ampp_id'] = data['ampp_id']
+                            temp_data['ampp_type'] = data['ampp_type']
+                            # get services for those entry data must be sent
+                            services = await self.__dbconnector_is.callproc('is_services_get', rows=-1, values=[None, 1, None, 1, None, None, None, None])
+                            keys = [f"{s['serviceName']}.entry" for s in services]
+                            await self.__amqpconnector.send(data=temp_data, persistent=True, keys=keys, priority=10)
+        except Exception as e:
+            await self.__logger.error({'module': self.name, 'error': repr(e)})
 
     # dispatcher
     async def _dispatch(self):
-        while True:
+        while not self.eventsignal:
             await self.__amqpconnector.cbreceive(self._process)
+        else:
+            await asyncio.sleep(0.5)
 
-    async def _handler(self, signal, loop):
-        # catch signal
-        await self.__logger.warning(f'{self.name} shutting down')
-        await self.__dbconnector_is.disconnect()
-        await self.__logger.shutdown()
-        # stop loop
-        self.__eventloop.stop()
-        # cancel tasks
-        pending = asyncio.Task.all_tasks()
-        for task in pending:
-            task.cancel()
-            # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
-            with suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
+    async def _signal_handler(self, signal):
+        # stop while loop coroutine
+        self.eventsignal = True
+        # stop while loop coroutine and send sleep signal to eventloop
+        tasks = asyncio.all_tasks(self.eventloop)
+        [t.cancel() for t in tasks]
+        # perform cleaning tasks
+        cleaning_tasks = []
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        pending = asyncio.all_tasks(self.eventloop)
+        # wait for cleaning tasks to be executed
+        await asyncio.gather(*pending, return_exceptions=True)
+        # perform eventloop shutdown
+        self.eventloop.stop()
+        self.eventloop.close()
+        # close process
+        os._exit(0)
 
     def run(self):
-        # use policy for own event loop
-        policy = asyncio.get_event_loop_policy()
-        policy.set_event_loop(policy.new_event_loop())
-        self.eventloop = asyncio.get_event_loop()
-        # define signals
+        # use own event loop
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
         # add signal handler to loop
         for s in signals:
-            self.eventloop.add_signal_handler(
-                s, lambda s=s: asyncio.create_task(self._handler(s, self.eventloop)))
-        # try-except statement for signals
-        try:
-            self.eventloop.run_until_complete(self._initialize())
-            self.eventloop.run_until_complete(self._dispatch())
-            self.eventloop.run_forever()
-        except Exception as e:
-            raise e
-            #self.eventloop.close()
-            #os._exit(0)
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
+                                                                   self._signal_handler(s)))
+        # # try-except statement for signals
+        self.eventloop.run_until_complete(self._initialize())
+        self.eventloop.run_until_complete(self._dispatch())

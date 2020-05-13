@@ -10,20 +10,21 @@ import configuration as cfg
 from .mibs import polling_mibs
 import signal
 from uuid import uuid4
+import os
 
 
 class AsyncSNMPPoller:
 
-    def __init__(self, devices_l):
+    def __init__(self, devices_l, mapping):
         self.__amqp_cnx: object = None
         self.__amqp_ch: object = None
         self.__amqp_ex: object = None
         self.__eventloop = None
         self.__logger = None
-        self.__amqp_status = bool
         self.name = 'SNMPPoller'
         self.__devices = devices_l
         self.__amqpconnector = None
+        self.__mapping = mapping
 
     @property
     def eventloop(self):
@@ -39,8 +40,9 @@ class AsyncSNMPPoller:
 
     async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
-        await self.__logger.info({"module": self.name, "info": "Logging initialized"})
-        self.__amqpconnector = await AsyncAMQP(self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        await self.__logger.info({"module": self.name, "info": "Starting..."})
+        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        await self.__logger.info({"module": self.name, "info": "Started"})
         return self
 
     async def _dispatch(self):
@@ -48,7 +50,8 @@ class AsyncSNMPPoller:
             for device in self.__devices:
                 with aiosnmp.Snmp(host=device['terIp'], port=161, community="public", timeout=cfg.snmp_timeout, retries=cfg.snmp_retries) as snmp:
                     try:
-                        for res in await snmp.get([mib.oid for mib in polling_mibs]):
+                        polling_mibs_current = [mib_current for mib_current in polling_mibs if mib_current.codename in d['statuses'] for d in self.__mapping if d['ter_id'] == device['terId']]
+                        for res in await snmp.get([mib.oid for mib in polling_mibs_current]):
                             snmp_object = next((mib for mib in polling_mibs if mib.oid == res.oid), None)
                             if not snmp_object is None:
                                 snmp_object.ts = datetime.now().timestamp()
@@ -59,16 +62,16 @@ class AsyncSNMPPoller:
                                 snmp_object.ampp_type = device['amppType']
                                 snmp_object.device_ip = device['terIp']
                                 snmp_object.snmpvalue = res.value
-                                # if snmp_object.codename == "BarrierLoop1Status":
-                                #     snmp_object.uid = uuid4()
-                                #     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
-                                # elif snmp_object.codename == "BarrierLoop2Status":
-                                #     snmp_object.uid = uuid4()
-                                #    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
-                                # elif snmp_object.codename == 'BarrierStatus':
-                                #     snmp_object.uid = uuid4()
-                                #     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier'], priority=10)
-                                if snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
+                                if snmp_object.codename == "BarrierLoop1Status":
+                                    snmp_object.uid = uuid4()
+                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
+                                elif snmp_object.codename == "BarrierLoop2Status":
+                                    snmp_object.uid = uuid4()
+                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
+                                elif snmp_object.codename == 'BarrierStatus':
+                                    snmp_object.uid = uuid4()
+                                    await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier'], priority=10)
+                                elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=7)
                                 elif snmp_object.codename == 'General':
                                     await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.general'], priority=9)

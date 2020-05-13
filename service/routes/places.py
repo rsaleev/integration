@@ -13,16 +13,18 @@ router = APIRouter()
 name = 'ws_places'
 
 
-class Places(BaseModel):
-    type: str = 'places'
-    parking_number: int
-    parking_area: int
-    client_free: int
-    client_busy: Optional[int]
-    vip_client_free: int
-    vip_client_busy: Optional[int]
-    date_event: str
-    error: Optional[int] = 0
+class PlacesRequest(BaseModel):
+    parking_number: Optional[int]
+    parking_area: int = 1
+    client_free: Optional[int]
+    client_busy: int
+    vip_client_free: Optional[int]
+    vip_client_busy: int
+    error: int = 1
+
+
+class PlacesResponse(BaseModel):
+    error: int
 
 
 @router.get('/rest/monitoring/places')
@@ -31,28 +33,23 @@ async def get_places():
     try:
         data = await ws.dbconnector_is.callproc('is_places_get', rows=-1, values=[None])
         return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
-    except (ProgrammingError, OperationalError) as e:
+    except Exception as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
-        return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Connection refused'}), status_code=404, media_type='application/json', background=tasks)
-
-
-@router.get('/rest/monitoring/tabarea')
-async def get_places():
-    data = await ws.dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
-    return Response(json.dumps({"pageData": data}, default=str), status_code=200, media_type='application/json')
+        return Response(json.dumps({'error': 'BAD REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
 
 
 @router.post('/rest/monitoring/places')
-async def upd_places(*, places: Places):
+async def upd_places(*, places: Places, response_model=PlacesResponse):
     tasks = BackgroundTasks()
     try:
-        for index, place in enumerate(places):
-            await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[place.client_free, place.vip_client_free, places.parking_area])
-            await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[place.client_free, places.parking_area])
-        return Response(status_code=200)
+        await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[places.client_busy, places.vip_client_busy, places.sub_client_busy, places.parking_area])
+        await ws.dbconnector_wp.callproc('wp_places_upd', rows=0, values=[places.client_free, places.parking_area])
+        return Response(json.dumps(PlacesResponse.dict()), status_code=200)
     except (ProgrammingError, OperationalError) as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
-        return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': 'Connection refused'}), status_code=404, media_type='application/json', background=tasks)
+        places.error = 0
+        return Response(json.dumps(PlacesResponse.dict()), status_code=500, media_type='application/json', background=tasks)
     except ValidationError as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
-        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not valid request'}), status_code=403, media_type='application/json', background=tasks)
+        places.error = 0
+        return Response(json.dumps(PlacesResponse.dict()), status_code=403, media_type='application/json', background=tasks)

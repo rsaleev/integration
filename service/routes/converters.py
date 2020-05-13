@@ -79,7 +79,7 @@ class Card(BaseModel):
     error: Optional[CardError]
 
 
-@router.get('/api/converters/troika/num/{num}')
+@router.get('/api/integration/v1/converters/troika/num/{num}')
 async def troika_num(num):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
                                             capath=cfg.metro_cert)
@@ -110,7 +110,7 @@ async def troika_num(num):
             return JSONResponse({'error': repr(e)})
 
 
-@router.get('/api/converters/troika/uid/{uid}')
+@router.get('/api/integration/v1/converters/troika/uid/{uid}')
 async def troika_uid(uid):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
                                             capath=cfg.metro_cert)
@@ -141,7 +141,7 @@ async def troika_uid(uid):
             return JSONResponse({'error': repr(e)})
 
 
-@router.get('/api/converters/mifare/uid/{uid}')
+@router.get('/api/integration/v1//converters/mifare/uid/{uid}')
 async def mifare_uid(uid):
     try:
         data_out = {}

@@ -8,13 +8,15 @@ import configuration as cfg
 import service.settings as ws
 import asyncio
 from datetime import date, datetime, timedelta
+from itertools import groupby
+
 
 router = APIRouter()
 
-name = 'webservice_data'
+name = 'webservice_report'
 
 
-@router.get('/rest/monitoring/data/{tbl}')
+@router.get('/api/integration/v1/report/{tbl}')
 async def get_view(tbl: str):
     tasks = BackgroundTasks()
     try:
@@ -28,11 +30,10 @@ async def get_view(tbl: str):
         else:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Forbidden'}), status_code=403, media_type='application/json', background=tasks)
 
- 
-@router.get('/rest/monitoring/grz')
+
+@router.get('/api/integration/v1/report/grz')
 async def get_grz(interval: int = None):
     data = await ws.dbconnector_is.callproc('rep_plates_get', rows=-1, values=[interval])
-    from itertools import groupby
     data_out = ([{"terAddress": key, "terDescription": next(d1['terDescription'] for d1 in data if d1['terAddress'] == key),
                   "camMode":next(d2['camMode'] for d2 in data if d2['terAddress'] == key),
                   "camPlateData": [({'date': g['checkDate'],

@@ -25,24 +25,19 @@ async def get_services():
             processes = await ws.dbconnector_is.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None, None])
             s['serviceProcesses'] = processes
         return Response(json.dumps(services, default=str), status_code=200, media_type='application/json')
-    except (OperationalError, ProgrammingError, InternalError) as e:
-        code, description = e.args
-        if code == 1146:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
-        elif code == 1305:
-            return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
+    except Exception as e:
+        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 
 @router.get('/rest/monitoring/services/{service_name}')
 async def get_service(service_name):
     try:
         service = await ws.dbconnector_is.callproc('is_services_get', rows=1, values=[service_name, None])
-        if not service is None:
-            processes = await ws.dbconnector_is.callproc(f"{service_name}_processes_get", rows=-1, values=[None, None, None, None, None])
+        processes = await ws.dbconnector_is.callproc(f"{service_name}_processes_get", rows=-1, values=[None, None, None, None, None])
         service['serviceProcesses'] = processes
-        return JSONResponse(service, status_code=200)
-    except (OperationalError, ProgrammingError, InternalError) as e:
-        return JSONResponse({'error': 'BAD_REQUEST'}, status_code=404)
+        return Response(json.dumps(service), status_code=200, media_type='application/json')
+    except Exception as e:
+        return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 
 @router.get('/rest/monitoring/services/{service_name}/{operation}')
@@ -53,17 +48,17 @@ async def upd_services(service_name, operation):
         unit.load()
         if operation == 'stop':
             unit.Unit.Stop(b'replace')
-            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
+            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200, media_type='application/json')
         elif operation == 'start':
             unit.Unit.Start(f"{service_name}.service".encode())
-            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
+            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200, media_type='application/json')
         elif operation == 'restart':
             unit.Unit.Stop(b'replace')
             unit.Unit.Start(b'replace')
-            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
+            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}), status_code=200, media_type='application/json')
         elif operation == 'status':
-            return JSONResponse({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}, status_code=200)
+            return Response(json.dumps({"service": service_name, "state": unit.Unit.ActiveState.decode(), "substate": unit.Unit.SubState.decode()}), status_code=200, media_type='application/json')
         else:
-            return JSONResponse({'error': 'BAD_REQUEST'}, status_code=403)
+            return Response(json.dumps({'error': 'BAD_REQUEST'}), status_code=403, media_type='application/json')
     except DBusFileNotFoundError:
-        return JSONResponse({'error': 'BAD_REQUEST'}, status_code=403)
+        return Response(json.dumps({'error': 'BAD_REQUEST'}), status_code=403, media_type='application/json')

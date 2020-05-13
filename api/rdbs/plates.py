@@ -5,12 +5,11 @@ import json
 from datetime import datetime, timedelta
 import asyncio
 import signal
-from contextlib import suppress
 import os
-from pprint import pprint
+import functools
 
 
-class PlatesDataProducer:
+class PlatesDataMiner:
     def __init__(self):
         self.__gates = []
         self.__dbconnector_wp = None
@@ -53,40 +52,24 @@ class PlatesDataProducer:
                 await asyncio.sleep(60)
 
     # graceful shutdown implementation
-    async def _signal_handler(self, signal, loop):
-        # catch signal
-        await self.__logger.warning(f'{self.name} shutting down')
-        await self.__dbconnector_is.disconnect()
-        await self.__dbconnector_wp.disconnect()
-        await self.__logger.shutdown()
-        # stop loop
-        self.__eventloop.stop()
-        # cancel tasks
-        pending = asyncio.Task.all_tasks()
-        for task in pending:
-            task.cancel()
-            # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
-            with suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
+    async def _signal_handler(self, signal):
+        self.eventsignal = True
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        list(map(lambda task: task.cancel(), tasks))
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.eventloop.stop()
+        self.eventloop.close()
+        os._exit(0)
 
-    # main function
     def run(self):
-        # use policy for own event loop
-        policy = asyncio.get_event_loop_policy()
-        policy.set_event_loop(policy.new_event_loop())
-        self.eventloop = asyncio.get_event_loop()
-        # define signals
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
         # add signal handler to loop
         for s in signals:
-            self.eventloop.add_signal_handler(
-                s, lambda s=s: asyncio.create_task(self._signal_handler(s, self.eventloop)))
-        # try-except statement
-        try:
-            self.eventloop.run_until_complete(self._initialize())
-            self.eventloop.run_until_complete(self._dispatch())
-            self.eventloop.run_forever()
-        except:
-            self.eventloop.close()
-            os._exit(0)
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
+                                                                   self._signal_handler(s)))
+        # # try-except statement for signals
+        self.eventloop.run_until_complete(self._initialize())
+        self.eventloop.run_until_complete(self._dispatch())

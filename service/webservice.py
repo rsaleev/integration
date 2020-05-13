@@ -22,37 +22,43 @@ import datetime
 
 name = 'remote'
 
-# API_KEY = "thenb!oronaal_lazo57tathethomenasas"
-# API_KEY_NAME = "token"
-# TIMESTAMP = "ts"
+API_KEY = "thenb!oronaal_lazo57tathethomenasas"
+API_KEY_NAME = "token"
+TIMESTAMP = "ts"
 
-# api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-# ts_key_header = APIKeyHeader(name=TIMESTAMP, auto_error=False)
-# api_key_cookie = APIKeyCookie(name=API_KEY_NAME, auto_error=False)
-
-
-# async def get_api_key(
-#     api_key_header: str = Security(api_key_header),
-#     ts_key_header: str = Security(ts_key_header),
-# ):
-#     secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
-#     if api_key_header is None or api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
-#         raise HTTPException(
-#             status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
-#         )
-
-# security = HTTPBasic()
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+ts_key_header = APIKeyHeader(name=TIMESTAMP, auto_error=False)
+api_key_cookie = APIKeyCookie(name=API_KEY_NAME, auto_error=False)
 
 
-# def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
-#     correct_username = 'admin'
-#     correct_password = API_KEY
-#     if not (correct_username and correct_password):
-#         raise HTTPException(
-#             status_code=HTTP_401_UNAUTHORIZED,
-#             detail="Incorrect credentials",
-#             headers={"WWW-Authenticate": "Basic"},
-#         )
+async def get_api_key(
+    api_key_header: str = Security(api_key_header),
+    ts_key_header: str = Security(ts_key_header),
+):
+    if api_key_header:
+        secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
+        if api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
+            )
+    else:
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
+        )
+
+
+security = HTTPBasic()
+
+
+def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = 'admin'
+    correct_password = API_KEY
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Incorrect credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
 
 
 app = FastAPI(title="Remote management Module",
@@ -67,10 +73,17 @@ app = FastAPI(title="Remote management Module",
 # app.include_router(services.router, dependencies=[Depends(get_api_key)])
 # app.include_router(statuses.router, dependencies=[Depends(get_api_key)])
 # app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
-#app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
-#app.include_router(converters.router, dependencies=[Depends(get_api_key)])
-app.include_router(converters.router)
+# app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
+# app.include_router(converters.router, dependencies=[Depends(get_api_key)])
+app.include_router(control.router)
+app.include_router(data.router)
+app.include_router(logs.router)
+app.include_router(places.router)
+app.include_router(services.router)
+app.include_router(statuses.router)
+app.include_router(subscription.router)
 app.include_router(ticket.router)
+app.include_router(converters.router)
 
 
 @app.on_event('startup')
@@ -82,19 +95,14 @@ async def startup():
     wp_devices = await ws.dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
     ws.autocashiers = [d for d in wp_devices if d['terType'] == 3]
     ws.gates = [d for d in wp_devices if d['terType'] in [1, 2]]
-    # await ws.soapconnector.connect()
-    # await ws.amqpconnector.connect()
+    await ws.soapconnector.connect()
+    await ws.amqpconnector.connect()
 
 
 @app.on_event('shutdown')
 async def shutdown():
     await ws.logger.warning({'module': name, 'info': 'Webservice is shutting down'})
-    ws.dbconnector_is.pool.close()
-    ws.dbconnector_wp.pool.close()
-    await ws.dbconnector_is.pool.wait.closed()
-    await ws.dbconnector_wp.pool.wait.closed()
     await ws.logger.shutdown()
-    await app.logger.shutdown()
 
 
 @app.get('/')
@@ -102,6 +110,16 @@ async def homepage():
     return {'title': app.title,
             'description': app.description,
             'version': app.version}
+
+
+@app.post('/extend')
+async def test_extend(paid: float):
+    return {'paid': paid}
+
+
+@app.get('/test')
+async def test_page():
+    return 'OK'
 
 
 @app.get('/status')

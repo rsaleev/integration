@@ -9,28 +9,42 @@ from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncamqp import AsyncAMQP
 import aioping
+import signal
+import functools
 
 
 class AsyncPingPoller:
     def __init__(self, devices_l):
         self.__amqp_connector = None
         self.__eventloop = None
+        self.__eventsignal = False
         self.__logger = None
         self.name = 'PingPoller'
         self.__devices = devices_l
-        self.__amqp_status = False
 
     @property
     def eventloop(self):
         return self.__eventloop
 
     @eventloop.setter
-    def eventloop(self, value):
-        self.__eventloop = value
+    def eventloop(self, v):
+        self.__eventloop = v
 
     @eventloop.getter
     def eventloop(self):
         return self.__eventloop
+
+    @property
+    def eventsignal(self):
+        return self.__eventsignal
+
+    @eventsignal.setter
+    def eventsignal(self, v):
+        self.__eventsignal = v
+
+    @eventsignal.getter
+    def eventsignal(self):
+        return self.__eventsignal
 
     @dataclass
     class NetworkStatus:
@@ -135,43 +149,71 @@ class AsyncPingPoller:
                     'ampp_type': self.ampp_type,
                     'device_ip': self.device_ip}
 
-    async def _log_init(self):
+    async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
-        await self.__logger.info({'module': self.name, 'info': 'Logging initialized'})
-        await self.__logger.info({"module": self.name, "info": "Establishing RabbitMQ connection"})
-        self.__amqp_connector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
-        await self.__logger.info({"module": self.name, "info": "RabbitMQ connection", "status": self.__amqp_connector.connected})
-        return self.__amqp_connector
+        await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
+        self.__amqp_connector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        await self.__logger.info({'module': self.name, 'msg': 'Started'})
+        return self
 
-    async def _ping(self, hostname):
+    async def _process(self, device):
+        network_status = self.NetworkStatus()
+        network_status.device_id = device['terId']
+        network_status.device_type = device['terType']
+        network_status.device_ip = device['terIp']
+        network_status.ampp_id = device['amppId']
+        network_status.ampp_type = device['amppType']
+        network_status.ts = datetime.now().timestamp()
         try:
-            await aioping.ping(hostname, timeout=cfg.snmp_timeout)
-            return 'ONLINE'
+            await aioping.ping(device['terIp'], timeout=cfg.snmp_timeout)
+            network_status.value = 'ONLINE'
         except (TimeoutError, asyncio.TimeoutError):
-            return 'OFFLINE'
-        except asyncio.CancelledError:
-            pass
+            network_status.value = 'OFFLINE'
+        finally:
+            await self.__amqp_connector.send(network_status.data, persistent=True, keys=['status.online'], priority=1)
 
     async def _dispatch(self):
-        while True:
+        while not self.eventsignal:
             try:
                 for device in self.__devices:
-                    ping_object = self.NetworkStatus()
-                    ping_object.device_id = device['terId']
-                    ping_object.device_type = device['terType']
-                    ping_object.device_ip = device['terIp']
-                    ping_object.ampp_id = device['amppId']
-                    ping_object.ampp_type = device['amppType']
-                    ping_object.ts = datetime.now().timestamp()
-                    ping_object.value = await self._ping(device['terIp'])
-                    await self.__amqp_connector.send(ping_object.data, persistent=True, keys=['status.online'], priority=1)
+
+                    await asyncio.sleep(0.2)
+                    await asu
                 await asyncio.sleep(cfg.snmp_polling)
             except asyncio.CancelledError:
                 pass
 
+    async def _signal_handler(self, signal):
+        self.eventsignal = True
+        # stop while loop coroutine
+        self.eventsignal = True
+        # stop while loop coroutine and send sleep signal to eventloop
+        tasks = asyncio.all_tasks(self.eventloop)
+        for task in tasks:
+            task.cancel()
+        # perform cleaning tasks
+        cleaning_tasks = []
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        pending = asyncio.all_tasks(self.eventloop)
+        # wait for cleaning tasks to be executed
+        await asyncio.gather(*pending)
+        # perform eventloop shutdown
+        self.eventloop.stop()
+        self.eventloop.close()
+        # close process
+        os._exit(0)
+
     def run(self):
-        self.eventloop = asyncio.get_event_loop()
-        self.eventloop.run_until_complete(self._log_init())
-        self.eventloop.run_until_complete(self._amqp_connect())
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
+        signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        # add signal handler to loop
+        for s in signals:
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
+                                                                   self._signal_handler(s)))
+        # # try-except statement for signals
+        self.eventloop.run_until_complete(self._initialize())
         self.eventloop.run_until_complete(self._dispatch())
-        self.eventloop.run_forever()

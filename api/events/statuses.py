@@ -7,8 +7,8 @@ from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
 import configuration as cfg
 import json
-from queue import Queue
-
+import functools
+import os
 
 
 class StatusListener:
@@ -17,34 +17,75 @@ class StatusListener:
         self.__dbconnector_is: object = None
         self.__amqpconnector: object = None
         self.__logger: object = None
-        self.__loop: object = None
+        self.__eventloop: object = None
+        self.__eventsignal: bool = False
         self.name = 'StatusesListener'
+
+    @property
+    def eventloop(self):
+        return self.__eventloop
+
+    @eventloop.setter
+    def eventloop(self, v):
+        self.__eventloop = v
+
+    @eventloop.getter
+    def eventloop(self):
+        return self.__eventloop
+
+    @property
+    def eventsignal(self):
+        return self.__eventsignal
+
+    @eventsignal.setter
+    def eventsignal(self, v):
+        self.__eventsignal = v
+
+    @eventsignal.getter
+    def eventsignal(self):
+        return self.__eventsignal
 
     async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({"module": self.name, "info": "Logging initialized"})
         await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
-        self.__amqpconnector = await AsyncAMQP(loop=self.eventloop, user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('statuses', ['status.*', 'command.*'], durable=False)
+        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect()
+        await self.__amqpconnector.bind('statuses', ['status.*', 'command.*.*'], durable=True)
         asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'AMQP Connection',
                                                   'status': self.__amqpconnector.connected}))
-        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx, loop=self.eventloop).connect()
+        self.__dbconnector_is = await AsyncDBPool(cfg.is_cnx).connect()
         return self
 
     # callback for post-processing AMQP message
-    async def _process(self, incoming_msg):
-        data = json.loads(incoming_msg)
-        await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])])
-        await asyncio.sleep(0.5)
+    async def _process(self, redelivered, key, data):
+        if not redelivered:
+            await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[data['device_id'], data['codename'], data['value'], datetime.fromtimestamp(data['ts'])])
+            await asyncio.sleep(0.5)
 
     # dispatcher
     async def _dispatch(self):
-        while True:
+        while not self.eventsignal:
             await self.__amqpconnector.cbreceive(self._process)
             await asyncio.sleep(0.5)
 
+    async def _signal_handler(self, signal):
+        self.eventsignal = True
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        list(map(lambda task: task.cancel(), tasks))
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.eventloop.stop()
+        self.eventloop.close()
+        os._exit(0)
+
     def run(self):
-        self.eventloop = asyncio.get_event_loop()
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
+        signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        # add signal handler to loop
+        for s in signals:
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
+                                                                   self._signal_handler(s)))
+        # # try-except statement for signals
         self.eventloop.run_until_complete(self._initialize())
         self.eventloop.run_until_complete(self._dispatch())
-        self.eventloop.run_forever()

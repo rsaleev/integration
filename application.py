@@ -1,25 +1,24 @@
 import asyncio
 from pathlib import Path
 import json
+import signal
+import os
+from datetime import datetime
+import functools
 from multiprocessing import Process
 from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
+from utils.asyncsoap import AsyncSOAP
 import configuration as cfg
 from api.snmp.poller import AsyncSNMPPoller
 from api.snmp.receiver import AsyncSNMPReceiver
 from api.events.statuses import StatusListener
-from api.events.places import PlacesListener
-from api.events.money import MoneyListener
+from api.events.entry import EntryListener
+from api.events.payment import PaymentListener
 from api.icmp.poller import AsyncPingPoller
 from utils.asynclog import AsyncLogger
 from service import webservice
-import signal
-from contextlib import suppress
-import os
-from datetime import datetime
-from aiomysql import IntegrityError
-from api.rdbs.plates import PlatesDataProducer
-import psutil
+
 
 
 class Application:
@@ -27,97 +26,157 @@ class Application:
         self.processes = []
         self.modules = []
         self.devices = []
-        self.logger = None
-        self.dbconnector_is = None
+        self.__logger = None
+        self.__dbconnector_is = None
+        self.__dbconnector_wp = None
+        self.__soapconnector = None
         self.eventloop = loop
         self.alias = 'integration'
 
+    async def _initialize_server(self) -> None:
+        ampp_id_mask = cfg.ampp_parking_id * 100
+        service_version = await self.__soapconnector.client.service.GetVersion()
+        await self.__soapconnector.execute('GetVersion')
+        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cfg.server_ip, service_version['rVersion']])
+
+    async def _initialize_device(self, device: dict, mapping: list) -> None:
+        device_is = next(d for d in mapping if d['ter_id'] == device['terId'])
+        ampp_id_mask = cfg.ampp_parking_id * 100
+        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[device['terId'], device['terAddress'], device['terType'], device_is['description'],
+                                                                              ampp_id_mask+device_is['ampp_id'], device_is['ampp_type'], device['terIdArea'],
+                                                                              device['terIPV4'], device['terVersion']])
+        imager_enabled = 1 if device_is['barcode_reader_enabled'] else 0
+        if device['terType'] in [1, 2]:
+            if not device['terJSON'] is None:
+                ocr_mode = json.loads(device['terJSON'])['CameraMode']
+                ocr_mode_string = 'freerun' if ocr_mode == 1 else 'trigger'
+                await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  ocr_mode, device['terCamPhoto1'],
+                                                                                      device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
+                                                                                      imager_enabled,
+                                                                                      ])
+            else:
+                await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  'unknown', device['terCamPhoto1'],
+                                                                                      device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
+                                                                                      imager_enabled,
+                                                                                      ])
+
+        elif device['terType'] == 3:
+            await self.__dbconnector_is.callproc('is_cashier_ins', rows=0, values=[device['terId'], device_is['cashbox_capacity'], device_is['cashbox_limit'], device_is['uniteller_id'],
+                                                                                   device_is['uniteller_ip'], device_is['payonline_id'], device_is['payonline_ip'],
+                                                                                   device_is['barcode_reader_ip'], 1 if device_is['barcode_reader_enabled'] else 0])
+
+    async def _initialize_statuses(self, devices: list, mapping: dict) -> None:
+        tasks = []
+        for d_is in mapping:
+            if d_is['ter_id'] == 0:
+                for st in d_is['statuses']:
+                    tasks.append(self.__dbconnector_is.callproc('is_status_ins', rows=0, values=[0, st]))
+            if d_is['ter_id'] > 0:
+                for st in d_is['statuses']:
+                    tasks.append(self.__dbconnector_is.callproc('is_status_ins', rows=0, values=[d_is['ter_id'], st]))
+        await asyncio.gather(*tasks)
+
     async def _initialize(self):
-        self.logger = await AsyncLogger().getlogger(cfg.log)
-        await self.logger.debug('Logging initialiazed')
-        await self.logger.info("Establishing RDBS Integration Pool Connection...")
-        self.dbconnector_is = await AsyncDBPool(cfg.is_cnx).connect()
-        await self.logger.info(f"RDBS Integration Connection: {self.dbconnector_is.connected}")
-        devices = await self.dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
+        logger = await AsyncLogger().getlogger(cfg.log)
+        await logger.info('Starting...')
+        connections_tasks = []
+        connections_tasks.append(AsyncDBPool(cfg.wp_cnx).connect())
+        connections_tasks.append(AsyncDBPool(cfg.is_cnx).connect())
+        connections_tasks.append(AsyncSOAP(cfg.soap_user, cfg.soap_password, cfg.object_id, cfg.soap_timeout, cfg.soap_url).connect())
+        self.__dbconnector_wp, self.__dbconnector_is, self.__soapconnector = await asyncio.gather(*connections_tasks)
+        devices = await self.__dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
+        f = open(cfg.MAPPING, 'r')
+        mapping = json.loads(f.read())
+        f.close()
+        tasks = []
+        tasks.append(self._initialize_server())
+        for d in devices:
+            tasks.append(self._initialize_device(d, mapping['devices']))
+            tasks.append(self._initialize_statuses(d, mapping['devices']))
+        await asyncio.gather(*tasks)
+        devices_is = await self.__dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
         # statuses listener process
         statuses_listener = StatusListener()
         statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
         self.processes.append(statuses_listener_proc)
-        # statuses_listener_proc.start()
-        # # places listener
-        places_listener = PlacesListener()
-        places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
-        self.processes.append(places_listener_proc)
-        # places_listener_proc.start()
-        # ping poller process
-        icmp_poller = AsyncPingPoller(devices)
-        icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
-        self.processes.append(icmp_poller_proc)
+        statuses_listener_proc.start()
+        # places listener
+        # places_listener = PlacesListener()
+        # places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
+        # self.processes.append(places_listener_proc)
+        # # places_listener_proc.start()
+        # # ping poller process
+        entry_listener = EntryListener()
+        entry_listener_proc = Process(target=entry_listener.run, name=entry_listener.name)
+        self.processes.append(entry_listener_proc)
+        entry_listener_proc.start()
+        # ttt
+        # print('ping_poller')
+        # icmp_poller = AsyncPingPoller(devices_is)
+        # icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
+        # self.processes.append(icmp_poller_proc)
         # icmp_poller_proc.start()
-        # SNMP poller process
-        snmp_poller = AsyncSNMPPoller(devices)
-        snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
-        self.processes.append(snmp_poller_proc)
+        # # SNMP poller process
+        # snmp_poller = AsyncSNMPPoller(devices_is, mapping['devices'])
+        # snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
+        # self.processes.append(snmp_poller_proc)
         # snmp_poller_proc.start()
         # SNMP receiver process
-        snmp_receiver = AsyncSNMPReceiver(devices)
+        snmp_receiver = AsyncSNMPReceiver(devices_is)
         snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
-        # snmp_receiver_proc.start()
+        snmp_receiver_proc.start()
         self.processes.append(snmp_receiver_proc)
-        webservice_proc = Process(target=webservice.run, name=webservice.name)
-        webservice_proc.start()
-        self.processes.append(webservice_proc)
-        # Reports generators
-        plates_reporting = PlatesDataProducer()
-        plates_reporting_proc = Process(target=plates_reporting.run, name='plates_reporting')
-        plates_reporting_proc.start()
-        self.processes.append(plates_reporting_proc)
-        # log parent process status
+        # webservice_proc = Process(target=webservice.run, name=webservice.name)
+        # webservice_proc.start()
+        # self.processes.append(webservice_proc)
+        # # Reports generators
+        # plates_reporting = PlatesDataProducer()
+        # plates_reporting_proc = Process(target=plates_reporting.run, name='plates_reporting')
+        # plates_reporting_proc.start()
+        # # self.processes.append(plates_reporting_proc)
+        # # log parent process status
         await self.__dbconnector_is.callproc('is_services_ins', rows=0, values=[self.alias, os.getpid(), 1])
+        logger.info('Started')
+        cleaning_tasks = []
+        cleaning_tasks.append(await self.__dbconnector_is.disconnect())
+        cleaning_tasks.append(await self.__dbconnector_wp.disconnect())
+        cleaning_tasks.append(await logger.shutdown())
+        print(datetime.now())
 
-    async def check(self):
-        for p in self.processes:
-            asyncio.ensure_future(self.logger.info(f'Starting process:{p.name}'))
-            p.start()
-            await self.logger.info({'process': p.name, 'status': p.is_alive(), 'pid': p.pid})
-
-    async def _signal_handler(self, signal, loop):
-        await self.__logger.warning(f'{self.alias} shutting down')
-        await self.__dbconnector_is.disconnect()
-        await self.__logger.shutdown()
-        pending = asyncio.Task.all_tasks()
-        for task in pending:
-            pending = asyncio.Task.all_tasks()
-            task.cancel()
-            self.eventloop.stop()
-            # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
-           # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
-            with suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
-
-    def stop(self):
-        pid = os.getpid()
-        parent = psutil.Process(pid)
-        for children in parent.children():
-            children.send_signal(signal.SIGTERM)
+    async def _signal_handler(self, signal):
+        # stop while loop coroutine
+        self.eventsignal = True
+        # stop while loop coroutine and send sleep signal to eventloop
+        tasks = asyncio.all_tasks(self.eventloop)
+        [t.cancel() for t in tasks]
+        # perform cleaning tasks
+        cleaning_tasks = []
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        pending = asyncio.all_tasks(self.eventloop)
+        # wait for cleaning tasks to be executed
+        await asyncio.gather(*pending, return_exceptions=True)
+        # perform eventloop shutdown
+        self.eventloop.stop()
+        self.eventloop.close()
+        # close process
+        os._exit(0)
 
     def run(self):
+       # use own event loop
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        # add signal handler to loop
         for s in signals:
-            self.eventloop.add_signal_handler(s, lambda s=s: asyncio.create_task(self._signal_handler(s, self.eventloop)))
-        try:
-            self.eventloop.run_until_complete(self._initialize())
-            tasks = [self.check(), self.external_check()]
-            asyncio.gather(*tasks)
-            self.eventloop.run_forever()
-        except Exception as e:
-            self.stop()
-            self.eventloop.close()
-            os._exit(0)
-        except RuntimeError:
-            pass
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
+                                                                   self._signal_handler(s)))
+        # # try-except statement for signals
+        self.eventloop.run_until_complete(self._initialize())
+        self.eventloop.run_until_complete(self._dispatch())
 
 
 if __name__ == "__main__":

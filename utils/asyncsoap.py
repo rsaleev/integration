@@ -18,25 +18,20 @@ class AsyncSOAP:
         self.__device = int
         self.__timeout = timeout
         self.connected = False
+        self.__wsdl = None
+        self.__method = str
 
-    async def connect(self):
-        while self.__transport is None or self.__client is None:
-            try:
-                self.__transport = AsyncTransport(loop=asyncio.get_running_loop(), cache=None, timeout=self.__timeout, operation_timeout=self.__timeout)
-                async with self.__transport.session.get(self.__url) as resp:
-                    content = await resp.read()
-                    wsdl = io.BytesIO(content)
-                    self.__client = Client(wsdl, transport=self.__transport)
-                    self.connected = True
-                    return self
-            except:
-                continue
+    @property
+    def method(self):
+        return self.__method
 
-    async def disconnect(self):
-        await self.__transport.session.close()
+    @method.setter
+    def method(self, v):
+        self.__method = v
 
-    # Exclusive header for CAMAE SOAP service
-    # Device is always 0 to mimic server request
+    @method.getter
+    def method(self):
+        return self.__method
 
     @property
     def deviceid(self):
@@ -52,11 +47,43 @@ class AsyncSOAP:
 
     @property
     def header(self):
-        return {'hIdMessage': int(datetime.now().timestamp()),
-                'hUser': self.__login,
-                'hPassw': self.__password,
-                'hDateTime': datetime.now().strftime("%Y%m%d%H%M%S"),
-                'hIdSite': cfg.object_id,
-                'hDevice': self.__device,
-                'hUserId': 0,
-                'hLanguage': 'ru'}
+        return
+
+    async def connect(self):
+        while self.__transport is None or self.__client is None:
+            try:
+                self.__transport = AsyncTransport(loop=asyncio.get_running_loop(), cache=None, timeout=self.__timeout, operation_timeout=self.__timeout)
+                async with self.__transport.session.get(self.__url) as resp:
+                    content = await resp.read()
+                    self.__wsdl = io.BytesIO(content)
+                    self.__client = Client(wsdl=self.__wsdl, transport=self.__transport)
+                    self.connected = True
+                    return self
+            except:
+                continue
+
+    async def disconnect(self):
+        await self.__transport.session.close()
+
+    async def execute(self, operation: str, header: bool = None, device: int = None, ** kwargs):
+        operation = self.__client.service._operations[f'{operation}']
+        msg_header = dict
+        if header:
+            msg_header = {'hIdMessage': int(datetime.now().timestamp()),
+                          'hUser': self.__login,
+                          'hPassw': self.__password,
+                          'hDateTime': datetime.now().strftime("%Y%m%d%H%M%S"),
+                          'hIdSite': cfg.object_id,
+                          'hDevice': 0,
+                          'hUserId': 0,
+                          'hLanguage': 'ru'}
+        if device:
+            msg_header['hDevice'] = device
+            res = await operation(sHeader=msg_header, **kwargs)
+            return res
+        else:
+            res = await operation(**kwargs)
+            return res
+
+    def services(self):
+        print(self.__wsdl)
