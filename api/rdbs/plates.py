@@ -42,7 +42,7 @@ class PlatesDataMiner:
                                                          d_out['noSymbols'], d_out['accuracy'], d_out['camMode'], d_out['date']])
 
     async def _dispatch(self):
-        while True:
+        while not self.eventsignal:
             if 2 <= datetime.now().hour < 3:
                 tasks = []
                 for g in self.__gates:
@@ -50,16 +50,28 @@ class PlatesDataMiner:
                 await asyncio.gather(*tasks)
             else:
                 await asyncio.sleep(60)
+        await asyncio.sleep(0.5)
 
-    # graceful shutdown implementation
     async def _signal_handler(self, signal):
+        # stop while loop coroutine
         self.eventsignal = True
-        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
-                 asyncio.tasks.current_task()]
-        list(map(lambda task: task.cancel(), tasks))
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # stop while loop coroutine and send sleep signal to eventloop
+        tasks = asyncio.all_tasks(self.eventloop)
+        [t.cancel() for t in tasks]
+        # perform cleaning tasks
+        cleaning_tasks = []
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        pending = asyncio.all_tasks(self.eventloop)
+        # wait for cleaning tasks to be executed
+        await asyncio.gather(*pending, return_exceptions=True)
+        # perform eventloop shutdown
         self.eventloop.stop()
         self.eventloop.close()
+        # close process
         os._exit(0)
 
     def run(self):
@@ -70,6 +82,6 @@ class PlatesDataMiner:
         for s in signals:
             self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
                                                                    self._signal_handler(s)))
-        # # try-except statement for signals
+        # try-except statement for signals
         self.eventloop.run_until_complete(self._initialize())
         self.eventloop.run_until_complete(self._dispatch())

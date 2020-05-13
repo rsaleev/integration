@@ -47,13 +47,11 @@ class StatusListener:
 
     async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
-        await self.__logger.info({"module": self.name, "info": "Logging initialized"})
-        await self.__logger.info({"module": self.name, "info": "Establishing AMQP Connection"})
+        await self.__logger.info({"module": self.name, "info": "Starting..,"})
         self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect()
         await self.__amqpconnector.bind('statuses', ['status.*', 'command.*.*'], durable=True)
-        asyncio.ensure_future(self.__logger.info({'module': self.name, 'info': 'AMQP Connection',
-                                                  'status': self.__amqpconnector.connected}))
         self.__dbconnector_is = await AsyncDBPool(cfg.is_cnx).connect()
+        await self.__logger.info({"module": self.name, "info": "Started"})
         return self
 
     # callback for post-processing AMQP message
@@ -66,6 +64,8 @@ class StatusListener:
     async def _dispatch(self):
         while not self.eventsignal:
             await self.__amqpconnector.cbreceive(self._process)
+            await asyncio.sleep(0.5)
+        else:
             await asyncio.sleep(0.5)
 
     async def _signal_handler(self, signal):

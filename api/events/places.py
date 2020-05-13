@@ -73,9 +73,9 @@ class PlacesListener:
         await self.__logger.info({'module': self.name, 'info': 'Starting...'})
         self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
         self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect()
         # listen for loop2 status and lost ticket payment
-        await self.__amqpconnector.bind('places_signals', ['status.loop2.*', 'command.physchal.*'])
+        await self.__amqpconnector.bind('places_signals', ['status.loop2.*', 'command.physchal.*'], durable=False)
         await self.__logger.info({'module': self.name, 'info': 'Started'})
         return self
 
@@ -93,19 +93,38 @@ class PlacesListener:
                         send_tasks.append(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[0, 'Places', 'FULL', datetime.now()]))
                     else:
                         await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[0, 'Places', 'VACANT', datetime.now()])
+        elif key == 'command.physchal.in':
+            await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], 2, p['areId']])
+
+    # dispatcher
 
     async def _dispatch(self):
         while not self.eventsignal:
-            places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
-            await self._process(places)
+            await self.__amqpconnector.cbreceive(self._process)
+            await asyncio.sleep(0.5)
         else:
             await asyncio.sleep(0.5)
 
-    def _signal_handler(self, signal):
-        self.eventloop.run_until_complete(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'}))
+    async def _signal_handler(self, signal):
+        # stop while loop coroutine
         self.eventsignal = True
+        # stop while loop coroutine and send sleep signal to eventloop
         tasks = asyncio.all_tasks(self.eventloop)
-        [t.cancel() for t in tasks]
+        for t in tasks:
+            t.cancel()
+        # # perform cleaning tasks
+        # cleaning_tasks = []
+        # cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        # cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
+        # cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
+        # cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
+        # cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        # pending = asyncio.all_tasks(self.eventloop)
+        # # wait for cleaning tasks to be executed
+        # await asyncio.gather(*pending, return_exceptions=True)
+        # perform eventloop shutdown
+        self.eventloop.stop()
+        self.eventloop.close()
         # close process
         os._exit(0)
 
@@ -117,7 +136,7 @@ class PlacesListener:
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
         # add signal handler to loop
         for s in signals:
-            self.eventloop.add_signal_handler(s, functools.partial(self._signal_handler, s))
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future, (self._signal_handler(s))))
         # # try-except statement for signals
         self.eventloop.run_until_complete(self._initialize())
         self.eventloop.run_until_complete(self._dispatch())

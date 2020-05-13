@@ -40,7 +40,7 @@ class AsyncSNMPReceiver:
         self.__logger = await AsyncLogger().getlogger(cfg.log_debug)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect())
         connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=5, max_size=10).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
@@ -50,7 +50,6 @@ class AsyncSNMPReceiver:
         try:
             # check if valid device or is it unknown
             device = await self.__dbconnector_is.callproc('is_devices_get', rows=1, values=[None, None, None, None, host])
-            # print(device)
             if not device is None:
                 oid = message.data.varbinds[1].value
                 val = message.data.varbinds[2].value
@@ -79,7 +78,6 @@ class AsyncSNMPReceiver:
                         snmp_object.act_uid = uuid4()
                         snmp_object.tra_uid = uuid4()
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.amount'], priority=10)
-
                     elif snmp_object.codename == 'PaymentCardType':
                         snmp_object.act_uid = uuid4()
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.cardtype'], priority=10)
@@ -115,12 +113,14 @@ class AsyncSNMPReceiver:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinhopper'], priority=3)
                     elif snmp_object.codename == 'Coinbox':
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinbox'], priority=3)
+                    await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
-            print(e)
             await self.__logger.error(e)
             await asyncio.sleep(0.2)
 
     async def _dispatch(self):
+        pid = os.getppid()
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         trap_listener = aiosnmp.SnmpV2TrapServer(host=cfg.snmp_trap_host, port=cfg.snmp_trap_port, communities=("public",), handler=self._handler)
         await trap_listener.run()
 
@@ -129,6 +129,7 @@ class AsyncSNMPReceiver:
         # catch signal
         await self.__logger.warning(f'{self.name} shutting down')
         await self.__logger.shutdown()
+        await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
         await self.__amqpconnector.disconnect()
         await self.__dbconnector_is.disconnect()
         pending = asyncio.all_tasks(self.eventloop)

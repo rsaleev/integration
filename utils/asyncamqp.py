@@ -24,11 +24,11 @@ class AsyncAMQP:
                 self.__cnx = await connect(f"amqp://{self.__user}:{self.__password}@{self.__host}/", loop=asyncio.get_running_loop(), timeout=2)
                 self.__ch = await self.__cnx.channel()
                 if self.__exchange_type == 'fanout':
-                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.FANOUT, passive=True, durable=True)
+                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.FANOUT, durable=True)
                 elif self.__exchange_type == 'topic':
-                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.TOPIC, passive=True, durable=True)
+                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.TOPIC,  durable=True)
                 elif self.__exchange_type == 'direct':
-                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.DIRECT, passive=True, durable=True)
+                    self.__ex = await self.__ch.declare_exchange(self.__exchange_name, ExchangeType.DIRECT, durable=True)
                 self.connected = True
                 return self
             except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):

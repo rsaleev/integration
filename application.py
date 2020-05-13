@@ -14,11 +14,13 @@ from api.snmp.poller import AsyncSNMPPoller
 from api.snmp.receiver import AsyncSNMPReceiver
 from api.events.statuses import StatusListener
 from api.events.entry import EntryListener
+from api.events.places import PlacesListener
 from api.events.payment import PaymentListener
 from api.icmp.poller import AsyncPingPoller
 from utils.asynclog import AsyncLogger
 from service import webservice
-
+from api.rdbs.plates import PlatesDataMiner
+import sys
 
 
 class Application:
@@ -77,8 +79,8 @@ class Application:
         await asyncio.gather(*tasks)
 
     async def _initialize(self):
-        logger = await AsyncLogger().getlogger(cfg.log)
-        await logger.info('Starting...')
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        await self.__logger.info('Starting...')
         connections_tasks = []
         connections_tasks.append(AsyncDBPool(cfg.wp_cnx).connect())
         connections_tasks.append(AsyncDBPool(cfg.is_cnx).connect())
@@ -96,74 +98,74 @@ class Application:
         await asyncio.gather(*tasks)
         devices_is = await self.__dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
         # statuses listener process
-        statuses_listener = StatusListener()
-        statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
-        self.processes.append(statuses_listener_proc)
-        statuses_listener_proc.start()
-        # places listener
-        # places_listener = PlacesListener()
-        # places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
-        # self.processes.append(places_listener_proc)
-        # # places_listener_proc.start()
+        # statuses_listener = StatusListener()
+        # statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
+        # self.processes.append(statuses_listener_proc)
+        # statuses_listener_proc.start()
+        # # places listener
+        places_listener = PlacesListener()
+        places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
+        self.processes.append(places_listener_proc)
+        places_listener_proc.start()
         # # ping poller process
-        entry_listener = EntryListener()
-        entry_listener_proc = Process(target=entry_listener.run, name=entry_listener.name)
-        self.processes.append(entry_listener_proc)
-        entry_listener_proc.start()
-        # ttt
-        # print('ping_poller')
-        # icmp_poller = AsyncPingPoller(devices_is)
+        # entry_listener = EntryListener()
+        # entry_listener_proc = Process(target=entry_listener.run, name=entry_listener.name)
+        # self.processes.append(entry_listener_proc)
+        # entry_listener_proc.start()
+        # icmp_poller = AsyncPingPoller()
         # icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
         # self.processes.append(icmp_poller_proc)
         # icmp_poller_proc.start()
         # # SNMP poller process
-        # snmp_poller = AsyncSNMPPoller(devices_is, mapping['devices'])
+        # snmp_poller = AsyncSNMPPoller(mapping['devices'])
         # snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
         # self.processes.append(snmp_poller_proc)
         # snmp_poller_proc.start()
-        # SNMP receiver process
-        snmp_receiver = AsyncSNMPReceiver(devices_is)
-        snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
-        snmp_receiver_proc.start()
-        self.processes.append(snmp_receiver_proc)
-        # webservice_proc = Process(target=webservice.run, name=webservice.name)
-        # webservice_proc.start()
-        # self.processes.append(webservice_proc)
-        # # Reports generators
-        # plates_reporting = PlatesDataProducer()
+        # # SNMP receiver process
+        # snmp_receiver = AsyncSNMPReceiver()
+        # snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
+        # snmp_receiver_proc.start()
+        # self.processes.append(snmp_receiver_proc)
+        # # webservice
+        webservice_proc = Process(target=webservice.run, name=webservice.name)
+        webservice_proc.start()
+        self.processes.append(webservice_proc)
+        # # # Reports generators
+        # plates_reporting = PlatesDataMiner()
         # plates_reporting_proc = Process(target=plates_reporting.run, name='plates_reporting')
         # plates_reporting_proc.start()
-        # # self.processes.append(plates_reporting_proc)
+        # self.processes.append(plates_reporting_proc)
         # # log parent process status
         await self.__dbconnector_is.callproc('is_services_ins', rows=0, values=[self.alias, os.getpid(), 1])
-        logger.info('Started')
         cleaning_tasks = []
-        cleaning_tasks.append(await self.__dbconnector_is.disconnect())
-        cleaning_tasks.append(await self.__dbconnector_wp.disconnect())
-        cleaning_tasks.append(await logger.shutdown())
-        print(datetime.now())
+        cleaning_tasks.append(self.__dbconnector_is.disconnect())
+        cleaning_tasks.append(self.__dbconnector_wp.disconnect())
+        await asyncio.gather(*cleaning_tasks)
+        self.__logger.info('Started')
 
     async def _signal_handler(self, signal):
+        # print(signal)
+        for p in self.processes:
+            p.terminate()
         # stop while loop coroutine
         self.eventsignal = True
         # stop while loop coroutine and send sleep signal to eventloop
+        self.eventloop.stop()
         tasks = asyncio.all_tasks(self.eventloop)
-        [t.cancel() for t in tasks]
-        # perform cleaning tasks
-        cleaning_tasks = []
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
-        pending = asyncio.all_tasks(self.eventloop)
-        # wait for cleaning tasks to be executed
-        await asyncio.gather(*pending, return_exceptions=True)
+        for t in tasks:
+            t.cancel()
+        # # perform cleaning tasks
+        # cleaning_tasks = []
+        # cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        # cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        # pending = asyncio.all_tasks(self.eventloop)
+        # # wait for cleaning tasks to be executed
+        # await asyncio.gather(*pending, return_exceptions=True)
         # perform eventloop shutdown
         self.eventloop.stop()
         self.eventloop.close()
         # close process
-        os._exit(0)
+        sys.exit(0)
 
     def run(self):
        # use own event loop
@@ -176,7 +178,7 @@ class Application:
                                                                    self._signal_handler(s)))
         # # try-except statement for signals
         self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
+        self.eventloop.run_forever()
 
 
 if __name__ == "__main__":

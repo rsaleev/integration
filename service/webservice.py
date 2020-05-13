@@ -9,7 +9,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.responses import Response, JSONResponse, PlainTextResponse
 from starlette.requests import Request
 from starlette.background import BackgroundTask, BackgroundTasks
-from service.routes import control, data, logs, places, services, statuses, subscription, ticket, converters
+from service.routes import control, data, logs, places, services, devices, subscription, ticket, converters
 import configuration as cfg
 from service import settings as ws
 import nest_asyncio
@@ -80,10 +80,10 @@ app.include_router(data.router)
 app.include_router(logs.router)
 app.include_router(places.router)
 app.include_router(services.router)
-app.include_router(statuses.router)
 app.include_router(subscription.router)
 app.include_router(ticket.router)
 app.include_router(converters.router)
+app.include_router(devices.router)
 
 
 @app.on_event('startup')
@@ -151,4 +151,4 @@ async def rdbs():
 
 
 def run():
-    uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level='debug')
+    uvicorn.run(app=app, host='0.0.0.0', port=cfg.asgi_port, workers=cfg.asgi_workers, log_level='info')

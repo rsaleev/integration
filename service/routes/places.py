@@ -39,7 +39,7 @@ async def get_places():
 
 
 @router.post('/rest/monitoring/places')
-async def upd_places(*, places: Places, response_model=PlacesResponse):
+async def upd_places(*, places: PlacesRequest, response_model=PlacesResponse):
     tasks = BackgroundTasks()
     try:
         await ws.dbconnector_is.callproc('is_places_upd', rows=0, values=[places.client_busy, places.vip_client_busy, places.sub_client_busy, places.parking_area])

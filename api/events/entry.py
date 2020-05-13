@@ -18,6 +18,7 @@ import configuration as cfg
 class EntryListener:
     def __init__(self):
         self.__dbconnector_wp: object = None
+        self.__dbconnector_is: object = None
         self.__soapconnector_wp: object = None
         self.__amqpconnector: object = None
         self.__logger: object = None
@@ -59,6 +60,8 @@ class EntryListener:
         connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.finished'], durable=True)
+        pid = os.getppid()
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         await self.__logger.info({'module': self.name, 'info': 'Started'})
         return self
 
@@ -154,14 +157,17 @@ class EntryListener:
                             services = await self.__dbconnector_is.callproc('is_services_get', rows=-1, values=[None, 1, None, 1, None, None, None, None])
                             keys = [f"{s['serviceName']}.entry" for s in services]
                             await self.__amqpconnector.send(data=temp_data, persistent=True, keys=keys, priority=10)
+                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
             await self.__logger.error({'module': self.name, 'error': repr(e)})
+            pass
 
     # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
             await self.__amqpconnector.cbreceive(self._process)
         else:
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
 
     async def _signal_handler(self, signal):

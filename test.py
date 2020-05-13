@@ -1,18 +1,24 @@
-import asyncio
-import re
-import configuration as cfg
-from utils.asyncsoap import AsyncSOAP
-from utils.asyncsql import AsyncDBPool
-import base64
-from datetime import datetime
+from pydantic import BaseModel, validator
+from typing import Optional
+import dateutil.parser as dp
 
 
-# async def test():
-#     connector = await AsyncSOAP(cfg.soap_user, cfg.soap_password, cfg.object_id, cfg.soap_timeout, cfg.soap_url).connect()
-#     res = await connector.execute(operation='GetPlate', header=True, device=1, wTerId=1)
-#     print(res)
+class CommandRequest(BaseModel):
+    type: str = "command"
+    error: Optional[int]
+    date_event: str
+    came_device_id: int
+    device_ip: Optional[str]
+    device_type: Optional[int]
+    command_number: int
+    device_events_id: Optional[int]
 
-event = False
+    @validator('date_event')
+    def date_validator(cls, v):
+        dt = dp.parse(v)
+        return dt
 
 
-
+test = {'date_event': '17-05-2020 17:05:30', 'came_device_id': '1', 'command_number': '1'}
+command = CommandRequest(**test)
+print(command.date_event)

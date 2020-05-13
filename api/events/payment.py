@@ -7,6 +7,7 @@ from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
 import json
 import configuration as cfg
+import os
 
 
 class PaymentListener:
@@ -74,7 +75,7 @@ class PaymentListener:
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
         self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect()
         await self.__amqpconnector.bind('statuses', ['status.payment'])
         self.__cashiers = await self.__dbconnector_is.callproc('is_cashiers_get', rows=-1, values=[])
         inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[])
@@ -84,6 +85,8 @@ class PaymentListener:
             tasks.append(self.__dbconnector_is.allproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
                                                                                            device['terAddress'], device['terDescription'], device['amppId'], inv['curChannelId'], inv['curChannelDescr']]))
         await asyncio.gather(*tasks)
+        pid = os.getppid()
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         await self.__logger.info({'module': self.name, 'msg': 'Started...'})
         return self
 
@@ -102,7 +105,7 @@ class PaymentListener:
         tasks = []
         money = await self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[data['device_id']])
         for m in money:
-            tasks.append(self.__dbconnector_wp.callproc('wp_money_upd', rows=0, values=[m['curTerId'], m['curChannelId'], m['curValue'], m['curQuantity']]))
+            tasks.append(self.__dbconnector_wp.callproc('wp_money_upd', rows=0, values=[m['curTerId'], m['curChannelId'], m['curValue'], m['curQuantity'], m['payCreation']]))
         await asyncio.gather(*tasks)
 
     async def _process_inventory(self, data: dict) -> None:
@@ -128,8 +131,45 @@ class PaymentListener:
                 tasks.append(self._process_money(data))
                 tasks.append(self._process_inventory(data))
 
+    # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
-            await self.__amqpconnector.cbreceive(cb=self._process)
+            await self.__amqpconnector.cbreceive(self._process)
         else:
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
+
+    async def _signal_handler(self, signal):
+        # stop while loop coroutine
+        self.eventsignal = True
+        # stop while loop coroutine and send sleep signal to eventloop
+        tasks = asyncio.all_tasks(self.eventloop)
+        [t.cancel() for t in tasks]
+        # perform cleaning tasks
+        cleaning_tasks = []
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
+        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
+        pending = asyncio.all_tasks(self.eventloop)
+        # wait for cleaning tasks to be executed
+        await asyncio.gather(*pending, return_exceptions=True)
+        # perform eventloop shutdown
+        self.eventloop.stop()
+        self.eventloop.close()
+        # close process
+        os._exit(0)
+
+    def run(self):
+        # use own event loop
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
+        signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        # add signal handler to loop
+        for s in signals:
+            self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
+                                                                   self._signal_handler(s)))
+        # # try-except statement for signals
+        self.eventloop.run_until_complete(self._initialize())
+        self.eventloop.run_until_complete(self._dispatch())

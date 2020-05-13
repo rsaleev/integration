@@ -15,7 +15,7 @@ class SNMPObject:
         self.__device_address: int = None
         self.__device_ip: str = None
         self.__device_type: int = None
-        self.__device_area:int = None 
+        self.__device_area: int = None
         self.__statusname = status_map
         self.__statusforced = forced_value
         self.__snmpvalue: int = -1
@@ -159,11 +159,23 @@ class SNMPObject:
         return self.__tra_uid
 
     @property
+    def device_area(self):
+        return self.__device_area
+
+    @device_area.setter
+    def device_area(self, value):
+        self.__device_area = value
+
+    @device_area.getter
+    def device_area(self):
+        return self.__device_area
+
+    @property
     def data(self):
         return {'device_id': self.device_id,
                 'device_address': self.device_address,
                 'device_type': self.device_type,
-                'device_area':self.device_area,
+                'device_area': self.device_area,
                 'codename': self.codename,
                 'value': self.snmpvalue,
                 'act_uid': self.act_uid,

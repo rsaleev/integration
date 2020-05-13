@@ -14,13 +14,13 @@ import functools
 
 
 class AsyncPingPoller:
-    def __init__(self, devices_l):
-        self.__amqp_connector = None
+    def __init__(self):
+        self.__amqpconnector = None
+        self.__dbconnector_is = None
         self.__eventloop = None
         self.__eventsignal = False
         self.__logger = None
         self.name = 'PingPoller'
-        self.__devices = devices_l
 
     @property
     def eventloop(self):
@@ -152,7 +152,10 @@ class AsyncPingPoller:
     async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
-        self.__amqp_connector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        connections_tasks = []
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=5, max_size=10).connect())
+        self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
 
@@ -170,27 +173,25 @@ class AsyncPingPoller:
         except (TimeoutError, asyncio.TimeoutError):
             network_status.value = 'OFFLINE'
         finally:
-            await self.__amqp_connector.send(network_status.data, persistent=True, keys=['status.online'], priority=1)
+            await self.__amqp_connector.send(network_status.data, persistent=True, keys=['status.online'], priority=7)
 
     async def _dispatch(self):
         while not self.eventsignal:
             try:
-                for device in self.__devices:
-
-                    await asyncio.sleep(0.2)
-                    await asu
-                await asyncio.sleep(cfg.snmp_polling)
+                devices = await self.__dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
+                for d in devices:
+                    await self._process(d)
             except asyncio.CancelledError:
                 pass
+        else:
+            await asyncio.sleep(0.5)
 
     async def _signal_handler(self, signal):
-        self.eventsignal = True
         # stop while loop coroutine
         self.eventsignal = True
         # stop while loop coroutine and send sleep signal to eventloop
         tasks = asyncio.all_tasks(self.eventloop)
-        for task in tasks:
-            task.cancel()
+        [t.cancel() for t in tasks]
         # perform cleaning tasks
         cleaning_tasks = []
         cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
