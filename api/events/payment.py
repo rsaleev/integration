@@ -75,7 +75,7 @@ class PaymentListener:
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
         self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect()
+        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
         await self.__amqpconnector.bind('statuses', ['status.payment'])
         self.__cashiers = await self.__dbconnector_is.callproc('is_cashiers_get', rows=-1, values=[])
         inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[])
@@ -134,30 +134,32 @@ class PaymentListener:
     # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
-            await self.__amqpconnector.cbreceive(self._process)
+            await self.__amqpconnector.receive(self._process)
         else:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
 
+    async def _signal_cleanup(self):
+        await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
+        await self.__dbconnector_is.disconnect()
+        await self.__dbconnector_wp.disconnect()
+        await self.__amqpconnector.disconnect()
+        await self.__logger.shutdown()
+
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        # stop while loop coroutine and send sleep signal to eventloop
-        tasks = asyncio.all_tasks(self.eventloop)
-        [t.cancel() for t in tasks]
-        # perform cleaning tasks
-        cleaning_tasks = []
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
-        pending = asyncio.all_tasks(self.eventloop)
-        # wait for cleaning tasks to be executed
-        await asyncio.gather(*pending, return_exceptions=True)
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        for t in tasks:
+            t.cancel()
+        asyncio.ensure_future(self._signal_cleanup())
         # perform eventloop shutdown
-        self.eventloop.stop()
-        self.eventloop.close()
+        try:
+            self.eventloop.stop()
+            self.eventloop.close()
+        except:
+            pass
         # close process
         os._exit(0)
 

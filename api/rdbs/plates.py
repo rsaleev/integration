@@ -14,12 +14,36 @@ class PlatesDataMiner:
         self.__gates = []
         self.__dbconnector_wp = None
         self.__dbconnector_is = None
+        self.__eventsignal = None
+        self.__eventloop = None
 
-    async def initialize(self):
+    @property
+    def eventloop(self):
+        return self.__eventloop
+
+    @eventloop.setter
+    def eventloop(self, value):
+        self.__eventloop = value
+
+    @eventloop.getter
+    def eventloop(self):
+        return self.__eventloop
+
+    @property
+    def eventsignal(self):
+        return self.__eventsignal
+
+    @eventsignal.setter
+    def eventsignal(self, value):
+        self.__eventsignal = value
+
+    @eventsignal.getter
+    def eventsignal(self):
+        return self.__eventsignal
+
+    async def _initialize(self):
         self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
         self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
-        devices = await self.__dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
-        self.__gates = [d for d in devices if d['terType'] in [1, 2]]
         return self
 
     async def _fetch(self, device: dict):
@@ -36,41 +60,43 @@ class PlatesDataMiner:
             d_out['noSymbols'] = d_out['totalTransits'] - d_out['more6symbols'] - d_out['less6symbols']
             if d_out['totalTransits'] > 0:
                 d_out['accuracy'] = int(round(d_out['more6symbols']/d_out['totalTransits']*100, 0))
-            d_out['camMode'] = 'trigger' if json.loads(device['terJSON'])['CameraMode'] == 1 else 'freerun'
+            d_out['camMode'] = device['camPlateMode']
             await self.__dbconnector_is.callproc('rep_plates_ins', rows=0,
                                                  values=[device['terAddress'], device['terDescription'], d_out['totalTransits'], d_out['more6symbols'], d_out['less6symbols'],
-                                                         d_out['noSymbols'], d_out['accuracy'], d_out['camMode'], d_out['date']])
+                                                         d_out['noSymbols'], d_out['accuracy'], d_out['camMode'], first_day, datetime.now()])
 
     async def _dispatch(self):
         while not self.eventsignal:
-            if 2 <= datetime.now().hour < 3:
+            if 20 <= datetime.now().hour < 21:
                 tasks = []
-                for g in self.__gates:
-                    tasks.append(self._fetch(g))
+                columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
+                for c in columns:
+                    tasks.append(self._fetch(c))
                 await asyncio.gather(*tasks)
             else:
                 await asyncio.sleep(60)
         await asyncio.sleep(0.5)
 
+    async def _signal_cleanup(self):
+        await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
+        await self.__dbconnector_is.disconnect()
+        await self.__dbconnector_wp.disconnect()
+        await self.__logger.shutdown()
+
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        # stop while loop coroutine and send sleep signal to eventloop
-        tasks = asyncio.all_tasks(self.eventloop)
-        [t.cancel() for t in tasks]
-        # perform cleaning tasks
-        cleaning_tasks = []
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
-        pending = asyncio.all_tasks(self.eventloop)
-        # wait for cleaning tasks to be executed
-        await asyncio.gather(*pending, return_exceptions=True)
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(self._signal_cleanup(), return_exceptions=True)
         # perform eventloop shutdown
-        self.eventloop.stop()
-        self.eventloop.close()
+        try:
+            self.eventloop.stop()
+            self.eventloop.close()
+        except:
+            pass
         # close process
         os._exit(0)
 
@@ -83,5 +109,8 @@ class PlatesDataMiner:
             self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
                                                                    self._signal_handler(s)))
         # try-except statement for signals
-        self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
+        try:
+            self.eventloop.run_until_complete(self._initialize())
+            self.eventloop.run_until_complete(self._dispatch())
+        except asyncio.CancelledError:
+            pass

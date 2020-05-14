@@ -173,37 +173,46 @@ class AsyncPingPoller:
         except (TimeoutError, asyncio.TimeoutError):
             network_status.value = 'OFFLINE'
         finally:
-            await self.__amqp_connector.send(network_status.data, persistent=True, keys=['status.online'], priority=7)
+            await self.__amqpconnector.send(network_status.data, persistent=True, keys=['status.online'], priority=7)
 
     async def _dispatch(self):
         while not self.eventsignal:
             try:
                 devices = await self.__dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
+                tasks = []
                 for d in devices:
-                    await self._process(d)
+                    tasks.append(self._process(d))
+                await asyncio.gather(*tasks)
+                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
+                await asyncio.sleep(cfg.rdbs_polling_interval)
             except asyncio.CancelledError:
                 pass
+
         else:
             await asyncio.sleep(0.5)
+
+    async def _signal_cleanup(self):
+        await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
+        await self.__dbconnector_is.disconnect()
+        await self.__dbconnector_wp.disconnect()
+        await self.__amqpconnector.disconnect()
+        await self.__logger.shutdown()
 
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        # stop while loop coroutine and send sleep signal to eventloop
-        tasks = asyncio.all_tasks(self.eventloop)
-        [t.cancel() for t in tasks]
-        # perform cleaning tasks
-        cleaning_tasks = []
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
-        pending = asyncio.all_tasks(self.eventloop)
-        # wait for cleaning tasks to be executed
-        await asyncio.gather(*pending)
+        await self.__amqpconnector.disconnect()
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(self._signal_cleanup(), return_exceptions=True)
         # perform eventloop shutdown
-        self.eventloop.stop()
-        self.eventloop.close()
+        try:
+            self.eventloop.stop()
+            self.eventloop.close()
+        except:
+            pass
         # close process
         os._exit(0)
 
@@ -215,6 +224,9 @@ class AsyncPingPoller:
         for s in signals:
             self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
                                                                    self._signal_handler(s)))
-        # # try-except statement for signals
-        self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
+        # try-except statement
+        try:
+            self.eventloop.run_until_complete(self._initialize())
+            self.eventloop.run_until_complete(self._dispatch())
+        except asyncio.CancelledError:
+            pass

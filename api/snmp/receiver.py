@@ -16,13 +16,12 @@ import functools
 
 class AsyncSNMPReceiver:
 
-    def __init__(self, devices):
+    def __init__(self):
         self.__amqpconnector = None
         self.__dbconnector_is = None
         self.__eventloop = None
         self.__logger = None
         self.name = 'SNMPReceiver'
-        self.__devices = devices
 
     @property
     def eventloop(self):
@@ -40,7 +39,7 @@ class AsyncSNMPReceiver:
         self.__logger = await AsyncLogger().getlogger(cfg.log_debug)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect())
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
         connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=5, max_size=10).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
@@ -48,11 +47,12 @@ class AsyncSNMPReceiver:
 
     async def _handler(self, host: str, port: int, message: aiosnmp.SnmpV2TrapMessage):
         try:
+            oid = message.data.varbinds[1].value
+            val = message.data.varbinds[2].value
+            print(oid, '=', val)
             # check if valid device or is it unknown
-            device = await self.__dbconnector_is.callproc('is_devices_get', rows=1, values=[None, None, None, None, host])
+            device = await self.__dbconnector_is.callproc('is_device_get', rows=1, values=[None, None, None, None, host])
             if not device is None:
-                oid = message.data.varbinds[1].value
-                val = message.data.varbinds[2].value
                 if oid in [m.oid for m in receiving_mibs]:
                     snmp_object = next(mib for mib in receiving_mibs if mib.oid == oid)
                     snmp_object.ts = datetime.now().timestamp()
@@ -64,6 +64,7 @@ class AsyncSNMPReceiver:
                     snmp_object.ampp_id = device['amppId']
                     snmp_object.ampp_type = device['amppType']
                     snmp_object.device_ip = host
+                    print(snmp_object.data)
                     # triggers that produce transaction event
                     if snmp_object.codename in 'BarrierLoop1Status':
                         # add uid
@@ -115,6 +116,7 @@ class AsyncSNMPReceiver:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinbox'], priority=3)
                     await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
+            print(e)
             await self.__logger.error(e)
             await asyncio.sleep(0.2)
 
@@ -124,19 +126,29 @@ class AsyncSNMPReceiver:
         trap_listener = aiosnmp.SnmpV2TrapServer(host=cfg.snmp_trap_host, port=cfg.snmp_trap_port, communities=("public",), handler=self._handler)
         await trap_listener.run()
 
-    # graceful shutdown implementation
-    async def _signal_handler(self, signal):
-        # catch signal
-        await self.__logger.warning(f'{self.name} shutting down')
-        await self.__logger.shutdown()
-        await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
-        await self.__amqpconnector.disconnect()
+    async def _signal_cleanup(self):
+        await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
         await self.__dbconnector_is.disconnect()
-        pending = asyncio.all_tasks(self.eventloop)
-        await asyncio.gather(*pending, return_exceptions=True)
-        # cancel server
-        self.eventloop.stop()
-        self.eventloop.close()
+        await self.__dbconnector_wp.disconnect()
+        await self.__amqpconnector.disconnect()
+        await self.__logger.shutdown()
+
+    async def _signal_handler(self, signal):
+        # stop while loop coroutine
+        self.eventsignal = True
+        await self.__amqpconnector.disconnect()
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(self._signal_cleanup(), return_exceptions=True)
+        # perform eventloop shutdown
+        try:
+            self.eventloop.stop()
+            self.eventloop.close()
+        except:
+            pass
+        # close process
         os._exit(0)
 
     def run(self):
@@ -149,6 +161,9 @@ class AsyncSNMPReceiver:
         for s in signals:
             self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
                                                                    self._signal_handler(s)))
-        self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
-        self.eventloop.run_forever()
+        try:
+            self.eventloop.run_until_complete(self._initialize())
+            self.eventloop.run_until_complete(self._dispatch())
+            self.eventloop.run_forever()
+        except asyncio.CancelledError:
+            pass

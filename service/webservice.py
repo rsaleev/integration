@@ -91,7 +91,7 @@ async def startup():
     ws.logger = await ws.logger.getlogger(cfg.log)
     await ws.dbconnector_is.connect()
     await ws.dbconnector_wp.connect()
-    ws.devices = await ws.dbconnector_is.callproc('is_devices_get', rows=-1, values=[None, None, None, None, None])
+    ws.devices = await ws.dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
     wp_devices = await ws.dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
     ws.autocashiers = [d for d in wp_devices if d['terType'] == 3]
     ws.gates = [d for d in wp_devices if d['terType'] in [1, 2]]
@@ -101,6 +101,8 @@ async def startup():
 
 @app.on_event('shutdown')
 async def shutdown():
+    await ws.dbconnector_wp.disconnect()
+    await ws.dbconnector_is.disconnect()
     await ws.logger.warning({'module': name, 'info': 'Webservice is shutting down'})
     await ws.logger.shutdown()
 
@@ -151,4 +153,4 @@ async def rdbs():
 
 
 def run():
-    uvicorn.run(app=app, host='0.0.0.0', port=cfg.asgi_port, workers=cfg.asgi_workers, log_level='info')
+    uvicorn.run(app=app, host='0.0.0.0', port=8081, workers=cfg.asgi_workers, log_level='info')

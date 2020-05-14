@@ -51,14 +51,15 @@ class CommandResponse(BaseModel):
 
 
 class CommandType(Enum):
-    OPEN_BARRIER = 3
-    CLOSE_BARRIER = 6
-    LOCK_BARRIER = 9
-    UNLOCK_BARRIER = 12
+    OPEN = 3
+    CLOSE = 6
+    LOCK = 9
+    UNLOCK = 12
     TURN_OFF = 15
     TURN_ON = 18
     REBOOT = 25
-    CLOSEDOFF = 41
+    CLOSEDOFF = 42
+    CLOSED = 41
     CLOSEDALL = 40
     OPENALL = 30
     OPENALLOFF = 31
@@ -133,7 +134,28 @@ class CommandStatus:
                 'device_ip': self.__device_ip}
 
 
-async def open_barrier(device, request_dt):
+async def open_barrier(device, request):
+    # check barrier statuses
+    check_tasks = []
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierAdvancedStatus']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
+    status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks, return_exceptions=True)
+    if (status['statusVal'] == 'OPENED' or
+        adv_status['statusVal'] == 'LOCKED' or
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+        return False
+    else:
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open')
+        return result
+
+
+async def close_barrier(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -142,21 +164,19 @@ async def open_barrier(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'OPENED' or adv_status['statusVal'] == 'LOCKED' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'CLOSED' or
+        adv_status['statusVal'] == 'LOCKED' or
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'CLOSE' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'OPEN':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='close')
+        return result
 
 
-async def close_barrier(device, request_dt):
+async def lock_barrier(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -165,21 +185,19 @@ async def close_barrier(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'CLOSED' or adv_status['statusVal'] == 'LOCKED' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'OPENED' or
+        adv_status['statusVal'] == 'LOCKED' or
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'LOCK' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'CLOSE':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='close')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='close')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='lockedopen')
+        return result
 
 
-async def lock_barrier(device, request_dt):
+async def unlock_barrier(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -188,107 +206,71 @@ async def lock_barrier(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'CLOSED' or adv_status['statusVal'] == 'LOCKED' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'OPENED' or
+        adv_status['statusVal'] == 'LOCKED' or
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'UNLOCK' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'LOCK':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='lockedopen')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='lockedopen')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='lockedopenoff')
+        return result
 
 
-async def unlock_barrier(device, request_dt):
-    # check barrier statuses
-    check_tasks = []
-    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
-    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierAdvancedStatus']))
-    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
-    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
-    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
-    status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'CLOSED' or adv_status['statusVal'] == 'UNLOCKED' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
-        return False
-    else:
-        if last_command['stCodename'] != 'UNLOCK':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='lockedopenoff')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='lockedopenoff')
-                return result
-            else:
-                return False
-
-
-async def turnoff_device(device, request_dt):
+async def turnoff_device(device, request):
     # check device['terId'] status
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'TURN_OFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'TURN_OFF':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='maintenanceon')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='maintenanceon')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='maintenanceon')
+        return result
 
 
-async def turnon_device(device, request_dt):
+async def turnon_device(device, request):
     # check device['terId'] status
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    status, last_command, network_status = await asyncio.gather(*check_tasks)
+    if (status['statusVal'] == 'IN_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'TURN_OFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'TURN_ON':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='maintenanceoff')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='maiintenanceoff')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='maintenanceoff')
+        return result
 
 
-async def reboot_device(device, request_dt):
+async def reboot_device(device, request):
     # check device['terId'] status
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'REBOOT' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'REBOOT' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'TURN_OFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'REBOOT':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='rebootsw')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='rebootsw')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='rebootsw')
+        return result
 
 
-async def lock_barrier_opened(device, request_dt):
+async def lock_barrier_opened(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -297,21 +279,19 @@ async def lock_barrier_opened(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'CLOSED' or adv_status['statusVal'] == 'OPENALL' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'OPENED' or
+        adv_status['statusVal'] == 'LOCKED' or
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'OPENALL' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'OPENALL':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='openall')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='openall')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='allout')
+        return result
 
 
-async def unlock_barrier_opened(device, request_dt):
+async def unlock_barrier_opened(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -320,21 +300,19 @@ async def unlock_barrier_opened(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'OPENED' or adv_status['statusVal'] == 'OPENALL_OFF' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (status['statusVal'] == 'OPENED' or
+        adv_status['statusVal'] == 'UNLOCKED' or
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'OPENALLOFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'OPENALL_OFF':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='openalloff')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='openalloff')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='alloutoff')
+        return result
 
 
-async def lock_barrier_closed(device, request_dt):
+async def block_casual_transit(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -343,21 +321,18 @@ async def lock_barrier_closed(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'CLOSED' or adv_status['statusVal'] == 'CLOSEDALL' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'OPENALLOFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'UNLOCK':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closedall')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closedall')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closed')
+        return result
 
 
-async def unlock_barrier_closed(device, request_dt):
+async def block_all_transit(device, request):
     # check barrier statuses
     check_tasks = []
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
@@ -366,18 +341,35 @@ async def unlock_barrier_closed(device, request_dt):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
-    if status['statusVal'] == 'CLOSED' or adv_status['statusVal'] == 'CLOSEDALL_OFF' or gate_status['statusVal'] == 'OUT_OF_SERVICE' or network_status['statusVal'] == 'OFFLINE':
+    if (
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'OPENALLOFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        if last_command['stCodename'] != 'UNLOCK':
-            result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closedalloff')
-            return result
-        else:
-            if last_command['statusTs'] + timedelta(seconds=5) != request_dt:
-                result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closedalloff')
-                return result
-            else:
-                return False
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closedall')
+        return result
+
+
+async def unblock_transit(device, request):
+    # check barrier statuses
+    check_tasks = []
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierAdvancedStatus']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
+    check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
+    status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks)
+    if (
+        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+        network_status['statusVal'] == 'OFFLINE' or
+            last_command['statusVal'] == 'OPENALLOFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+        return False
+    else:
+        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
+        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='closedoff')
+        return result
 
 
 @router.get('/api/integration/v1/control')
@@ -389,8 +381,8 @@ async def rem_show():
 async def rem_exec(*, request: CommandRequest):
     uid = uuid4()
     tasks = BackgroundTasks()
-    response = CommandResponse(**request.dict(exclude_unset=True))
-    device = await ws.dbconnector_is.callproc('is_devices_get', rows=1, values=[request.came_device_id, None, None, None, None])
+    response = CommandResponse(**request.dict())
+    device = await ws.dbconnector_is.callproc('is_device_get', rows=1, values=[request.came_device_id, None, None, None, None])
     if not device is None:
         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": request.dict(exclude_unset=True)})
         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -398,12 +390,11 @@ async def rem_exec(*, request: CommandRequest):
         try:
             if request.command_number == 3:
                 if device['terType'] in [1, 2]:
-                    result = await open_barrier(device, request.date_event)
+                    result = await open_barrier(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
 
                         response.date_event = datetime.now()
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
@@ -423,7 +414,7 @@ async def rem_exec(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
             elif request.command_number == 6:
                 if device['terType'] in [1, 2]:
-                    result = await close_barrier(device, request.date_event)
+                    result = await close_barrier(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -446,7 +437,7 @@ async def rem_exec(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
             elif request.command_number == 9:
                 if device['terType'] in [1, 2]:
-                    result = await lock_barrier(device, request.date_event)
+                    result = await lock_barrier(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -467,7 +458,7 @@ async def rem_exec(*, request: CommandRequest):
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
             elif request.command_number == 12:
                 if device['terType'] in [1, 2]:
-                    result = await unlock_barrier(device, request.date_event)
+                    result = await unlock_barrier(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -486,7 +477,7 @@ async def rem_exec(*, request: CommandRequest):
                     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
             elif request.command_number == 15:
-                result = await turnoff_device(device, request.date_event)
+                result = await turnoff_device(device, request)
                 if result:
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -500,7 +491,7 @@ async def rem_exec(*, request: CommandRequest):
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
             elif request.command_number == 18:
-                result = await turnon_device(device, request.date_event)
+                result = await turnon_device(device, request)
                 if result:
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -513,7 +504,7 @@ async def rem_exec(*, request: CommandRequest):
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
             elif request.command_number == 25:
-                result = await reboot_device(device, request.date_event)
+                result = await reboot_device(device, request)
                 if result:
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -528,7 +519,7 @@ async def rem_exec(*, request: CommandRequest):
                     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
             elif request.command_number == 30:
                 if device['terType'] in [1, 2]:
-                    result = await lock_barrier_opened(device, request.date_event)
+                    result = await lock_barrier_opened(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -548,7 +539,7 @@ async def rem_exec(*, request: CommandRequest):
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
             elif request.command_number == 31:
                 if device['terType'] in [1, 2]:
-                    result = await unlock_barrier_opened(device, request.date_event)
+                    result = await unlock_barrier_opened(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -568,7 +559,7 @@ async def rem_exec(*, request: CommandRequest):
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
             elif request.command_number == 40:
                 if device['terType'] in [1, 2]:
-                    result = await lock_barrier_closed(device, request.date_event)
+                    result = await block_all_transit(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -589,7 +580,7 @@ async def rem_exec(*, request: CommandRequest):
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
             elif request.command_number == 41:
                 if device['terType'] in [1, 2]:
-                    result = await unlock_barrier_closed(device, request.date_event)
+                    result = await block_casual_transit(device, request)
                     if result:
                         tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -607,9 +598,31 @@ async def rem_exec(*, request: CommandRequest):
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-        except Exception as e:
-            response.error = 1
-            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
-            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                     json.dumps({'uid': str(uid), 'response': repr(e)}, ensure_ascii=False, default=str), datetime.now()])
-            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+            elif request.command_number == 42:
+                if device['terType'] in [1, 2]:
+                    result = await unblock_transit(device, request)
+                    if result:
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                else:
+                    response.error = 1
+                    response.date_event = datetime.now()
+                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+        # except Exception as e:
+        #     response.error = 1
+        #     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
+        #     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+        #                                                                              json.dumps({'uid': str(uid), 'response': repr(e)}, ensure_ascii=False, default=str), datetime.now()])
+        #     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+        except:
+            raise

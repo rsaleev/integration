@@ -10,7 +10,7 @@ import signal
 import os
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
-from utils.asyncamqp import AsyncAMQP
+from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 from utils.asyncsoap import AsyncSOAP
 import configuration as cfg
 
@@ -57,7 +57,7 @@ class EntryListener:
         connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
         connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
         connections_tasks.append(AsyncSOAP(login=cfg.soap_user, password=cfg.soap_password, parking_id=cfg.object_id, timeout=cfg.soap_timeout, url=cfg.soap_url).connect())
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='direct').connect())
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.finished'], durable=True)
         pid = os.getppid()
@@ -165,30 +165,35 @@ class EntryListener:
     # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
-            await self.__amqpconnector.cbreceive(self._process)
+            try:
+                await self.__amqpconnector.receive(self._process)
+            except (ChannelClosed, ChannelInvalidStateError):
+                pass
         else:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
 
+    async def _signal_cleanup(self):
+        await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
+        await self.__dbconnector_is.disconnect()
+        await self.__dbconnector_wp.disconnect()
+        await self.__amqpconnector.disconnect()
+        await self.__logger.shutdown()
+
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        # stop while loop coroutine and send sleep signal to eventloop
-        tasks = asyncio.all_tasks(self.eventloop)
-        [t.cancel() for t in tasks]
-        # perform cleaning tasks
-        cleaning_tasks = []
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.warning({'module': self.name, 'warning': 'Shutting down'})))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_is.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__dbconnector_wp.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__amqpconnector.disconnect()))
-        cleaning_tasks.append(asyncio.ensure_future(self.__logger.shutdown()))
-        pending = asyncio.all_tasks(self.eventloop)
-        # wait for cleaning tasks to be executed
-        await asyncio.gather(*pending, return_exceptions=True)
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
+                 asyncio.tasks.current_task()]
+        for t in tasks:
+            t.cancel()
+        asyncio.ensure_future(self._signal_cleanup())
         # perform eventloop shutdown
-        self.eventloop.stop()
-        self.eventloop.close()
+        try:
+            self.eventloop.stop()
+            self.eventloop.close()
+        except:
+            pass
         # close process
         os._exit(0)
 
@@ -201,6 +206,9 @@ class EntryListener:
         for s in signals:
             self.eventloop.add_signal_handler(s, functools.partial(asyncio.ensure_future,
                                                                    self._signal_handler(s)))
-        # # try-except statement for signals
-        self.eventloop.run_until_complete(self._initialize())
-        self.eventloop.run_until_complete(self._dispatch())
+        # try-except statement
+        try:
+            self.eventloop.run_until_complete(self._initialize())
+            self.eventloop.run_until_complete(self._dispatch())
+        except asyncio.CancelledError:
+            pass
