@@ -63,6 +63,12 @@ class CommandType(Enum):
     CLOSEDALL = 40
     OPENALL = 30
     OPENALLOFF = 31
+    TRAFFIC_JAM_ON = 81
+    TRAFFIC_JAM_OFF = 82
+
+    @staticmethod
+    def list():
+        return list(map(lambda c: {'number': c.value, 'description': c.name}, CommandType))
 
 
 class CommandStatus:
@@ -116,10 +122,6 @@ class CommandStatus:
             return 'CHALLENGED_OUT'
         elif self.__value == 102 and not self.__result:
             return 'ALREADY_OPENED'
-        elif self.__value == 0 and self.__result:
-            return 'PLACES_UPDATED'
-        elif self.__value == 0 and not self.__result:
-            return 'PLACES_NOT_UPDATED'
 
     @property
     def instance(self):
@@ -374,7 +376,7 @@ async def unblock_transit(device, request):
 
 @router.get('/api/integration/v1/control')
 async def rem_show():
-    pass
+    return CommandType.list()
 
 
 @router.post('/api/integration/v1/control')
@@ -618,11 +620,13 @@ async def rem_exec(*, request: CommandRequest):
                     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                              json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-        # except Exception as e:
-        #     response.error = 1
-        #     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
-        #     tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-        #                                                                              json.dumps({'uid': str(uid), 'response': repr(e)}, ensure_ascii=False, default=str), datetime.now()])
-        #     return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-        except:
-            raise
+
+            elif request.command_number == 81:
+                pass
+
+        except Exception as e:
+            response.error = 1
+            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
+            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                     json.dumps({'uid': str(uid), 'response': repr(e)}, ensure_ascii=False, default=str), datetime.now()])
+            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
