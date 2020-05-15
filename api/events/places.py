@@ -85,7 +85,7 @@ class PlacesListener:
             places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
             for p in places:
                 tasks = []
-                tasks.append(await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], 1, p['areId']]))
+                tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, None, p['areId']]))
                 if p['areId'] == 1:
                     if p['areFreePark'] == 0:
                         msg = self.PlacesWarning(data['device_id'], data['device_address'], data['device_ip'], 'FULL')
