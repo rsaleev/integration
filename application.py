@@ -10,17 +10,17 @@ from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncsoap import AsyncSOAP
 import configuration as cfg
-from api.snmp.poller import AsyncSNMPPoller
-from api.snmp.receiver import AsyncSNMPReceiver
+from api.producers.snmp.poller import AsyncSNMPPoller
+from api.producers.snmp.receiver import AsyncSNMPReceiver
+from api.producers.icmp.poller import AsyncPingPoller
 from api.events.statuses import StatusListener
 from api.events.entry import EntryListener
 from api.events.exit import ExitListener
 from api.events.places import PlacesListener
 from api.events.payment import PaymentListener
-from api.icmp.poller import AsyncPingPoller
 from utils.asynclog import AsyncLogger
 from service import webservice
-from api.rdbs.plates import PlatesDataMiner
+from api.producers.rdbs.plates import PlatesDataMiner
 import sys
 import os
 
@@ -150,7 +150,6 @@ class Application:
             cleaning_tasks.append(self.__dbconnector_wp.disconnect())
             cleaning_tasks.append(self.__logger.info('Started'))
             await asyncio.gather(*cleaning_tasks)
-            print('Started')
         except asyncio.CancelledError:
             pass
 
