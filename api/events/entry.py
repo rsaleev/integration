@@ -13,6 +13,7 @@ from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 from utils.asyncsoap import AsyncSOAP
 import configuration as cfg
+from datetime import timedelta
 
 
 class EntryListener:
@@ -123,7 +124,7 @@ class EntryListener:
                     elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
                         # check if temp data is stored and delete record
                         temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
-                        if not temp_data is None and data['ts'].timestamp() - temp_data['ts'] <= 500:
+                        if temp_data['transactionData'] is None and temp_data['ts'] >= datetime.now() - timedelta(seconds=3):
                             await self.__dbconnector_is.callproc('is_entry_del', rows=0, values=[temp_data['transactionUID']])
                     # 3rd message loop 2 status
                     elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 'OCCUPIED':

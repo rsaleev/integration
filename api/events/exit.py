@@ -12,6 +12,7 @@ from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
 from utils.asyncsoap import AsyncSOAP
 import configuration as cfg
+from datetime import timedelta
 
 
 class ExitListener:
@@ -103,29 +104,31 @@ class ExitListener:
                         plate, photo = await asyncio.gather(*images, return_exceptions=True)
                         plate_accuracy = plate['rConfidence']
                         plate_img = plate['rImage'] if plate_accuracy > 0 else None
-                        await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
+                        await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
                     else:
                         plate, _ = await asyncio.gather(*images)
                         plate_accuracy = plate['rConfidence']
                         plate_img = plate['rImage'] if plate_accuracy > 0 else None
-                        await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
+                        await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
                 # 2nd message barrier opened
                 elif data['codename'] == 'BarrierStatus' and data['value'] == 'OPENED':
                     transit_data = await self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id']])
                     # with barrier act uid
-                    await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], data['act_uid'], transit_data['transitionUID'], json.dumps(transit_data, default=str), datetime.now()])
+                    await self.__dbconnector_is.callproc('is_exit_barrier_ins', rows=0, values=[data['device_address'], data['act_uid'], transit_data['transitionUID'], json.dumps(transit_data, default=str), datetime.now()])
                 # 2nd  possible message loop 1 reversed car
                 elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
                     # check if temp data is stored and delete record
-                    await self.__dbconnector_is.callproc('is_entry_del', rows=0, values=[device['device_address']])
+                    temp_data = await self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_address']])
+                    if temp_data['transactionData'] is None and temp_data['ts'] >= datetime.now() - timedelta(seconds=3):
+                        await self.__dbconnector_is.callproc('is_exit_del', rows=0, values=[temp_data['transactionUID']])
                 # 3rd message loop 2 status
                 elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 'OCCUPIED':
                     # check if camera #2 is bound to column
                     photo = None
                     if not device['camPhoto2'] is None and device['camPhoto2'] != '':
                         photo = await self._capture_photo(device['camPhoto2'])
-                    await self.__dbconnector_is.callproc('is_entry_loop2_ins', rows=0, values=[data['device_address'], data['act_uid'], photo, datetime.now()])
-                    temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
+                    await self.__dbconnector_is.callproc('is_exit_loop2_ins', rows=0, values=[data['device_address'], data['act_uid'], photo, datetime.now()])
+                    temp_data = await self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_address']])
                     temp_data['ampp_id'] = data['ampp_id']
                     temp_data['ampp_type'] = data['ampp_type']
                     # get services for those entry data must be sent
