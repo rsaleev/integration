@@ -1,24 +1,14 @@
-from pydantic import BaseModel, validator
-from typing import Optional
-import dateutil.parser as dp
+from enum import Enum
 
 
-class CommandRequest(BaseModel):
-    type: str = "command"
-    error: Optional[int]
-    date_event: str
-    came_device_id: int
-    device_ip: Optional[str]
-    device_type: Optional[int]
-    command_number: int
-    device_events_id: Optional[int]
+class Color(Enum):
+    RED = 1
+    GREEN = 2
+    BLUE = 3
 
-    @validator('date_event')
-    def date_validator(cls, v):
-        dt = dp.parse(v)
-        return dt
+    @staticmethod
+    def list():
+        return list(map(lambda c: {'description': c.value, 'number': c.name}, Color))
 
 
-test = {'date_event': '17-05-2020 17:05:30', 'came_device_id': '1', 'command_number': '1'}
-command = CommandRequest(**test)
-print(command.date_event)
+print(Color.list())

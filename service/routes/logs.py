@@ -17,16 +17,17 @@ router = APIRouter()
 name = 'webservice_logs'
 
 
-@router.get('/rest/monitoring/logs/{source}')
-async def get_devices_status(source: str, rows: int = 10, level: str = None, from_dt: str = date.today().strftime('%Y-%m-%d'), to_dt: str = date.today().strftime('%Y-%m-%d')):
+@router.get('/api/integration/v1/monitoring/logs/{source}')
+async def get_devices_status(source, rows: int = 10, level: str = None, from_date: str = None, to_date: str = None):
     tasks = BackgroundTasks()
     if level in ['debug', 'error', 'critical', 'warning', 'info'] or level is None:
+        date_from = date.today() if from_date is None else from_date
+        date_to = date.today() if to_date is None else to_date
         try:
-            data = await ws.dbconnector_is.callproc('is_logs_get', rows=rows, values=[source, level, from_dt, to_dt, rows])
-            return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
+            data = await ws.dbconnector_is.callproc('is_logs_get', rows=-1, values=[source, level, date_from, to_date, rows])
+            return Response(json.dumps(data, default=str, indent=4, skipkeys=True), status_code=200, media_type='application/json')
         except Exception as e:
             tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/statuses', 'error': repr(e)})
             return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': repr(e)}, default=str), status_code=500, media_type='application/json', background=tasks)
-
     else:
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Wrong parameter'}, default=str), status_code=500, media_type='application/json', background=tasks)

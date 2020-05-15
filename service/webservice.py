@@ -66,24 +66,15 @@ app = FastAPI(title="Remote management Module",
               version="0.0.1", debug=cfg.asgi_debug,
               docs_url=None, redoc_url=None, openapi_url=None)
 
-# app.include_router(control.router, dependencies=[Depends(get_api_key)])
-# app.include_router(data.router, dependencies=[Depends(get_api_key)])
-# app.include_router(logs.router, dependencies=[Depends(get_api_key)])
-# app.include_router(places.router, dependencies=[Depends(get_api_key)])
-# app.include_router(services.router, dependencies=[Depends(get_api_key)])
-# app.include_router(statuses.router, dependencies=[Depends(get_api_key)])
-# app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
-# app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
-# app.include_router(converters.router, dependencies=[Depends(get_api_key)])
-app.include_router(control.router)
-app.include_router(data.router)
-app.include_router(logs.router)
-app.include_router(places.router)
-app.include_router(services.router)
-app.include_router(subscription.router)
-app.include_router(ticket.router)
-app.include_router(converters.router)
-app.include_router(devices.router)
+app.include_router(control.router, dependencies=[Depends(get_api_key)])
+app.include_router(data.router, dependencies=[Depends(get_api_key)])
+app.include_router(logs.router, dependencies=[Depends(get_api_key)])
+app.include_router(places.router, dependencies=[Depends(get_api_key)])
+app.include_router(services.router, dependencies=[Depends(get_api_key)])
+app.include_router(devices.router, dependencies=[Depends(get_api_key)])
+app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
+app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
+app.include_router(converters.router, dependencies=[Depends(get_api_key)])
 
 
 @app.on_event('startup')
@@ -129,27 +120,6 @@ async def rdbs():
     return {'Wisepark RDBS Connection': ws.dbconnector_wp.connected,
             'Integration RDBS Connection': ws.dbconnector_is.connected,
             'Wisepark SOAP Connection': ws.soapconnector.connected}
-
-
-# @app.get("/openapi.json", tags=["documentation"])
-# async def get_open_api_endpoint(credentials: HTTPBasicCredentials = Depends(get_current_username)):
-#     response = JSONResponse(
-#         get_openapi(title="OpenAPI Documentation and Test", version="0.1", routes=app.routes)
-#     )
-#     return response
-
-
-# @app.get("/documentation", tags=["documentation"])
-# async def get_documentation(credentials: HTTPBasicCredentials = Depends(get_current_username)):
-#     response = get_swagger_ui_html(openapi_url="/openapi.json", title="docs")
-#     response.set_cookie(
-#         API_KEY_NAME,
-#         value=api_key_header,
-#         httponly=True,
-#         max_age=1800,
-#         expires=1800,
-#     )
-#     return response
 
 
 def run():

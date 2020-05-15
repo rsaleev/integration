@@ -1,0 +1,3232 @@
+{
+    "logged_at": "2020-05-14T13:18:33.938442+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T13:18:33.966761+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:18:37.352067+03:00",
+    "level": "WARNING",
+    "msg": {
+        "module": "PlacesListener",
+        "msg": "Shutting down"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:19:25.767361+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T13:19:25.794490+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:19:27.058347+03:00",
+    "level": "WARNING",
+    "msg": {
+        "module": "PlacesListener",
+        "msg": "Shutting down"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:21:41.363542+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T13:21:41.389699+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:21:44.258903+03:00",
+    "level": "WARNING",
+    "msg": {
+        "module": "PlacesListener",
+        "msg": "Shutting down"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:57:29.813906+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T13:57:29.842548+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T13:57:31.414986+03:00",
+    "level": "WARNING",
+    "msg": {
+        "module": "PlacesListener",
+        "msg": "Shutting down"
+    }
+}
+{
+    "logged_at": "2020-05-14T15:48:27.019753+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T15:48:27.050185+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:37:10.649531+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:37:10.700776+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:38:13.284789+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:38:13.312244+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:39:47.972685+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:39:48.027503+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:40:44.287040+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:40:44.345300+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:42:49.573386+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:42:49.611679+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:10.750386+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:10.834068+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:25.468624+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:25.536059+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:37.106832+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:37.140695+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:59.300279+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:43:59.347664+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:45:32.975497+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:45:33.019329+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:45:51.839989+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:45:51.896401+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:47:08.854633+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:47:08.929585+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:47:21.332204+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:47:21.366706+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:48:33.669794+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:48:33.761249+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:48:44.701562+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:48:44.749458+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:49:36.330090+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:49:36.400376+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:49:58.907323+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:49:58.942300+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:51:25.458527+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:51:25.517335+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:53:30.253864+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:53:30.303903+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:54:42.115701+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:54:42.191227+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:56:20.525646+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:56:20.580752+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:56:41.073126+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:56:41.116254+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:57:10.225092+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:57:10.278672+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:57:32.120558+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:57:32.166184+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:57:54.643685+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:57:54.701972+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T16:58:04.935702+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T16:58:04.990181+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:00:13.009646+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:00:13.071439+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:01:55.064400+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:01:55.113763+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:04:42.505436+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:04:42.553650+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:04:54.529116+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:04:54.588564+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:06:46.429003+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:06:46.500058+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:07:49.362142+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:07:49.418435+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:08:16.648293+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:08:16.692762+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:08:37.301362+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:08:37.333886+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:08:53.019953+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:08:53.074911+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:09:15.949411+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:09:15.997995+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:10:21.102239+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:10:21.139579+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:11:24.223052+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:11:24.265381+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:12:32.352489+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:12:32.404442+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:15:10.514171+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:15:10.560526+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:17:19.304482+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:17:19.346833+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:42:20.343361+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:42:47.225103+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:43:29.893954+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:43:29.949214+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:43:55.674740+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:43:55.741693+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:45:31.698830+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:45:31.757314+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:46:15.389855+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:46:15.442521+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:48:29.186437+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:48:29.246904+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:49:10.131987+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:49:10.173492+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:50:55.270268+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:50:55.310041+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:53:49.420139+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:53:49.480483+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T17:55:43.429917+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T17:55:43.494246+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:21:45.590577+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:21:45.648373+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:22:22.318450+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:22:22.374117+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:22:43.875465+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:22:43.922217+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:23:22.495265+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:23:22.531673+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:29:01.920472+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:29:01.993012+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:29:46.541680+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:29:46.577134+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:31:02.767595+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:31:02.866566+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:31:35.668476+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:31:35.721233+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:32:53.268069+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:32:53.344977+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:41:34.918348+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:41:34.997959+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:43:33.835044+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:43:33.895091+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:44:50.583767+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:44:50.664477+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:45:20.783588+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:45:20.814273+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:46:58.740674+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:46:58.812488+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:51:03.632277+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:51:03.700552+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:51:30.077048+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:51:30.131337+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:52:01.801901+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:52:01.862140+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:52:49.740593+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:52:49.796469+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:53:22.757414+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:53:22.809995+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:54:16.859983+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:54:16.901430+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:57:08.115626+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:57:08.176709+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:57:43.126287+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:57:43.184975+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T18:58:33.653991+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T18:58:33.702600+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:00:01.992863+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:00:02.046191+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:00:53.816628+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:00:53.873321+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:01:46.858718+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:01:46.909217+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:03:06.867693+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:03:06.931346+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:03:49.859013+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:03:49.911101+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:04:39.411749+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:04:39.473201+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:05:38.231287+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:05:38.276623+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:09:12.695476+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:09:12.751255+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:10:32.504250+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:10:32.564687+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:11:12.984669+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:11:13.059335+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:12:01.272317+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:12:01.341408+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:13:49.716667+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:13:49.775227+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:14:39.312558+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:14:39.371967+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:15:27.196797+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:15:27.244519+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:17:15.694272+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:17:15.763478+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:18:01.798414+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:18:01.860558+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:18:26.512746+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:18:26.613377+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:20:00.679967+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:20:00.724088+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:30:28.849546+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:30:28.915681+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:31:45.721812+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:31:45.765762+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:37:31.159220+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:37:31.212082+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:39:49.847415+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:39:49.892306+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:54:23.202517+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:54:23.246922+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:55:32.223273+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:55:32.290924+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:56:03.693597+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:56:03.743765+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:56:31.353690+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:56:31.415119+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:57:38.275483+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:57:38.369902+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:58:22.698389+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:58:22.741272+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:59:44.692708+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:59:44.799600+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T19:59:58.000579+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T19:59:58.053275+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:00:34.229537+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:00:34.291511+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:01:40.590039+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:01:40.640221+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:03:08.999746+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:03:09.072055+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:05:35.588788+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:05:35.653513+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:06:44.361186+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:06:44.400743+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:07:15.673590+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:07:15.726966+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:07:48.920270+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:07:48.963705+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T20:10:41.818326+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T20:10:41.866823+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:10:35.631300+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:10:35.699842+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:24:50.719142+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:24:50.773700+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:25:13.751236+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:25:13.840225+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:25:37.036036+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:25:37.093310+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:25:50.094037+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:25:50.171548+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:26:31.765314+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:26:31.814608+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:28:24.827632+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:28:24.876773+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:28:47.415602+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:28:47.466026+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:40:16.673685+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:40:16.754453+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:40:40.899972+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:40:40.968006+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:44:16.850958+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:44:16.917673+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:48:25.719549+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:48:25.780492+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:50:48.561539+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:50:48.610832+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:51:00.282079+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:51:00.343189+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:51:24.484195+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:51:24.532881+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:51:39.531340+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:51:39.592386+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:52:09.682024+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:52:09.776760+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:52:33.422781+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:52:33.475503+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:56:45.862182+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:56:45.912792+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:57:15.880817+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:57:15.962174+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T21:59:06.718050+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T21:59:06.765847+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:00:02.185060+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:00:02.228394+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:00:26.626684+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:00:26.705784+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:09:57.787264+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:09:57.872900+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:11:26.822808+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:11:26.903843+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:11:52.827843+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:11:52.879167+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:12:04.712728+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:12:04.771711+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:12:20.747553+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:12:20.788148+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:12:41.580855+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:12:41.628659+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:13:00.626106+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:13:00.700539+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:13:57.368169+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:13:57.404724+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:14:25.978405+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:14:26.010540+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:15:12.094464+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:15:12.144966+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:15:53.295395+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:15:53.346995+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:16:44.613595+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:16:44.695019+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:17:25.665325+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:17:25.699275+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:18:07.285174+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:18:07.331904+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:18:26.903484+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:18:26.960453+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:19:54.423706+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:19:54.475517+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:20:12.132824+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:20:12.185302+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:03.321540+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:03.366657+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:22.189761+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:22.304412+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:44.129556+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:44.193551+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:54.743638+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:25:54.789857+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:26:48.905834+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:26:48.990555+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:27:51.163991+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:27:51.214555+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:29:00.615958+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:29:00.678170+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:30:43.614297+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:30:43.678283+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:31:12.607227+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:31:12.648560+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:31:50.747380+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:31:50.784834+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:42:11.616809+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:42:11.665037+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:42:50.051719+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:42:50.111716+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:43:26.580952+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:43:26.637717+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:44:10.684066+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:44:10.736943+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:46:55.946485+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:46:55.980681+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:47:44.999024+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:47:45.061707+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:48:51.033818+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:48:51.083883+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:49:17.800804+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:49:17.839963+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:49:48.870529+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:49:48.907126+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:50:00.794218+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:50:00.856919+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:50:17.887779+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:50:17.940449+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:50:32.154473+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:50:32.212658+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:51:08.992711+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:51:09.038254+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:51:23.994573+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:51:24.059343+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:53:29.427978+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:53:29.484829+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:55:39.891730+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:55:39.961249+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:57:07.897301+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:57:07.965583+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:57:27.984714+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:57:28.027469+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T22:57:37.875911+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T22:57:37.945293+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:00:20.643918+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:00:20.691603+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:01:06.593493+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:01:06.658612+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:01:20.869974+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:01:20.936823+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:02:07.991578+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:02:08.033449+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:02:31.320225+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:02:31.375584+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:03:27.508094+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:03:27.581156+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:04:06.069334+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:04:06.118451+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:04:28.526038+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:04:28.562733+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:05:08.947205+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:05:09.016155+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:05:37.345968+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:05:37.405367+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:06:30.795950+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:06:30.838472+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:06:53.601747+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:06:53.657770+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:07:32.556277+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:07:32.613623+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}
+{
+    "logged_at": "2020-05-14T23:08:09.318659+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Starting..."
+    }
+}
+{
+    "logged_at": "2020-05-14T23:08:09.383553+03:00",
+    "level": "INFO",
+    "msg": {
+        "module": "PlacesListener",
+        "info": "Started"
+    }
+}

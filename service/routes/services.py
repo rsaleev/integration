@@ -12,7 +12,7 @@ from pystemd.dbusexc import DBusFileNotFoundError, DBusFileNotFoundError, DBusAc
 from starlette.background import BackgroundTasks
 from service import settings as ws
 from pystemd.exceptions import PystemdRunError
-
+import asyncio
 
 router = APIRouter()
 
@@ -20,12 +20,13 @@ router = APIRouter()
 @router.get('/rest/monitoring/services')
 async def get_services():
     try:
-        services = await ws.dbconnector_is.callproc('is_services_get', rows=-1, values=[None, None])
+        services = await ws.dbconnector_is.callproc('is_services_get', rows=-1, values=[None, None, None, None, None, None, None, None])
+        print(services)
         for s in services:
-            processes = await ws.dbconnector_is.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None, None])
-            s['serviceProcesses'] = processes
+            s['processes'] = await ws.dbconnector_is.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None])
         return Response(json.dumps(services, default=str), status_code=200, media_type='application/json')
     except Exception as e:
+        print(e)
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 

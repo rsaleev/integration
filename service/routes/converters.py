@@ -56,35 +56,17 @@ async def mifare_convert(code):
     return came_code
 
 
-class CardKind(BaseModel):
-    name: str
-    name_short: str
-
-
-class CardInfo(BaseModel):
-    uid: str
-    num: str
-    kind: CardKind
-    status: str
-    carrier_type: str
-
-
-class CardError(BaseModel):
-    code: str
-    comment: str
-
-
 class Card(BaseModel):
-    card: Optional[CardInfo]
-    error: Optional[CardError]
+    card: Optional[dict]
+    error: Optional[dict]
 
 
 @router.get('/api/integration/v1/converters/troika/num/{num}')
 async def troika_num(num):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
-                                            capath=cfg.metro_cert)
+                                            capath=cfg.METRO)
     sslcontext.load_cert_chain(
-        certfile=cfg.metro_cert+'/ampp.crt',
+        certfile=cfg.METRO+'/ampp.crt',
         keyfile=cfg.metro_cert+'/ampp.key')
     conn = aiohttp.TCPConnector(ssl_context=sslcontext)
     async with aiohttp.ClientSession(connector=conn) as session:
@@ -93,12 +75,12 @@ async def troika_num(num):
                                    timeout=cfg.metro_timeout, ssl=sslcontext) as r:
                 if r.status == 200:
                     response = await r.json()
-                    data = Card(**response).dict(exclude_unset=True)
+                    data = Card(**response)
                     data_out = {}
-                    data_out['card_uid'] = data['card']['uid']
-                    data_out['card_num'] = data['card']['num']
-                    data_out['came_code'] = await troika_convert(data['card']['uid'])
-                    data_out['card_status'] = data['card']['status']
+                    data_out['cardUid'] = data.card['uid']
+                    data_out['cardNum'] = data.card['num']
+                    data_out['cameCode'] = await troika_convert(data.card['uid'])
+                    data_out['cardStatus'] = data.card['status']
                     return JSONResponse(data_out)
                 elif r.status == 400:
                     response = await r.json()
@@ -113,10 +95,10 @@ async def troika_num(num):
 @router.get('/api/integration/v1/converters/troika/uid/{uid}')
 async def troika_uid(uid):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
-                                            capath=cfg.metro_cert)
+                                            capath=cfg.METRO)
     sslcontext.load_cert_chain(
-        certfile=cfg.metro_cert+'/ampp.crt',
-        keyfile=cfg.metro_cert+'/ampp.key')
+        certfile=cfg.METRO+'/ampp.crt',
+        keyfile=cfg.METRO+'/ampp.key')
     conn = aiohttp.TCPConnector(ssl_context=sslcontext)
     async with aiohttp.ClientSession(connector=conn) as session:
         try:
@@ -124,13 +106,14 @@ async def troika_uid(uid):
                                    timeout=cfg.metro_timeout, ssl=sslcontext) as r:
                 if r.status == 200:
                     response = await r.json()
-                    data = Card(**response).dict(exclude_unset=True)
+                    data = Card(**response)
                     data_out = {}
-                    data_out['card_uid'] = data['card']['uid']
-                    data_out['card_num'] = data['card']['num']
-                    data_out['came_code'] = await troika_convert(data['card']['uid'])
-                    data_out['card_status'] = data['card']['status']
+                    data_out['cardUid'] = data.card['uid']
+                    data_out['cardNum'] = data.card['num']
+                    data_out['cameCode'] = await troika_convert(data.card['uid'])
+                    data_out['cardStatus'] = data.card['status']
                     return JSONResponse(data_out)
+
                 elif r.status == 400:
                     response = await r.json()
                     data = Card(**response)
@@ -141,7 +124,7 @@ async def troika_uid(uid):
             return JSONResponse({'error': repr(e)})
 
 
-@router.get('/api/integration/v1//converters/mifare/uid/{uid}')
+@router.get('/api/integration/v1/converters/mifare/uid/{uid}')
 async def mifare_uid(uid):
     try:
         data_out = {}
