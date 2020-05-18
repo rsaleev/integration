@@ -14,6 +14,7 @@ from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 from utils.asyncsoap import AsyncSOAP
 import configuration as cfg
 from datetime import timedelta
+from uuid import uuid4
 
 
 class EntryListener:
@@ -93,80 +94,111 @@ class EntryListener:
         return data
 
     async def _process(self, redelivered, key, data):
-        print(data)
         try:
             if not redelivered:
                 # check message keys
                 # casual parking entry
                 if key in ['status.loop1.entry', 'status.loop2.entry', 'status.barrier.entry']:
                     device = await self.__dbconnector_is.callproc('is_column_get', rows=1, values=[data['device_id']])
-                    if data['codename'] == 'BarrierLoop1Status' and data['value'] == 'OCCUPIED':
-                        images = []
-                        # defeault
-                        images.append(self._capture_plate(device['terId']))
-                        if not device['camPhoto1'] is None and device['camPhoto1'] != '':
-                            images.append(self._capture_photo(device['camPhoto1']))
-                        futures = await asyncio.gather(*images, return_exceptions=True)
-                        # try-except to suppress unpack error
-                        try:
-                            plate, photo = futures
-                            plate_accuracy = plate['rConfidence']
-                            plate_img = plate['rImage'] if plate_accuracy > 0 else None
-                            await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
-                        except ValueError:
-                            plate, = futures
-                            plate_accuracy = plate['rConfidence']
-                            plate_img = plate['rImage'] if plate_accuracy > 0 else None
-                            await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, None, data['act_uid'], datetime.now()])
+                    if data['codename'] == 'BarrierLoop1Status':
+                        if data['value'] == 'OCCUPIED':
+                            images = []
+                            # defeault
+                            images.append(self._capture_plate(device['terId']))
+                            if not device['camPhoto1'] is None and device['camPhoto1'] != '':
+                                images.append(self._capture_photo(device['camPhoto1']))
+                            futures = await asyncio.gather(*images, return_exceptions=True)
+                            # try-except to suppress unpack error
+                            try:
+                                plate, photo = futures
+                                plate_accuracy = plate['rConfidence']
+                                plate_img = plate['rImage'] if plate_accuracy > 0 else None
+                                await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
+                            except ValueError:
+                                plate, = futures
+                                plate_accuracy = plate['rConfidence']
+                                plate_img = plate['rImage'] if plate_accuracy > 0 else None
+                                await self.__dbconnector_is.callproc('is_entry_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, None, data['act_uid'], datetime.now()])
+                        elif data['value'] == 'FREE':
+                            temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address'], None])
+                            data['tra_uid'] = temp_data['transactionUID']
+                            await self.__amqpconnector.send(data, persistent=True, keys=['active.entry.loop1'], priority=10)
                     # 2nd message barrier opened
                     elif data['codename'] == 'BarrierStatus' and data['value'] == 'OPENED':
                         tasks = []
-                        tasks.append(self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id']]))
-                        tasks.append(self.__dbconnector_is.callproc('is_entry_uid_get', rows=1, values=[data['device_address']]))
+                        tasks.append(self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id'], None]))
+                        tasks.append(self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']]))
                         transit_data, temp_data = await asyncio.gather(*tasks, return_exceptions=True)
-                        if not transit_data is None and not temp_data is None:
-                            data['tra_uid'] = temp_data['transactionUID']
-                            await self.__amqpconnector.send(data=data, persistent=True, keys=['action.entry.barrier'], priority=10)
-                            await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], data['act_uid'],
-                                                                                                                           transit_data['transitionUID'], json.dumps(transit_data, default=str), datetime.now()]))
+                        # bind transactionUID
+                        data['tra_uid'] = temp_data['transactionUID']
+                        await self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.barrier'], priority=10)
+                        await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], data['act_uid'],
+                                                                                                     transit_data['transitionUID'], json.dumps(transit_data, default=str), datetime.now()])
+                    elif data['codename'] == 'BarrierStatus' and data['value'] == 'CLOSED':
+                        temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address'], 0])
+                        # bind transactionUID
+                        data['tra_uid'] = temp_data['transactionUID']
+                        await self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.barrier'], priority=10)
                     # 2nd  possible message loop 1 reversed car
                     elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
                         # check if temp data is stored and delete record
-                        temp_data=await self.__dbconnector_is.callproc('is_entry_get', rows = 1, values = [data['device_address']])
-                        if temp_data['transactionData'] is None:
-                            await self.__dbconnector_is.callproc('is_entry_del', rows = 0, values = [temp_data['transactionUID']])
+                        pre_tasks = []
+                        pre_tasks.append(self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id'], 0]))
+                        pre_tasks.append(self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']]))
+                        transit_data, temp_data = await asyncio.gather(*tasks, return_exceptions=True)
+                        post_tasks = []
+                        if not transit_data is None and transit_data['transitionTS'].timestamp() - data['ts'] < 500.00:
+                            data['tra_uid'] = temp_data['transactionUID']
+                            # simulate normal processing and send data to exchange instantly
+                            temp_data['transactionUID'] = transit_data
+                            proc_tasks = []
+                            proc_tasks.apppend(self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.reverse'], priority=10))
+                            proc_tasks.append(self.__amqpconnector.send(data=temp_data, persistent=True, keys=['entry.reversed'], priority=8))
+                            await asyncio.gather(*proc_tasks)
+                            # post processing operations
+                            post_tasks.append(self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], data['act_uid'],
+                                                                                                                     transit_data['transitionUID'], json.dumps(transit_data, default=str), datetime.now()]))
+                            # confirm entry data processing
+                            post_tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_address']]))
+                        # if RDBS doesn't have transition data send event and confirm
                         else:
-                            temp_data=await self.__dbconnector_is.callproc('is_entry_get', rows = 1, values = [data['device_address']])
-                            temp_data['tra_uid']=temp_data['transactionUID']
-                            await self.__amqpconnector.send(data = temp_data, persistent = True, keys = ['action.entry.reversed'], priority = 9)
+                            data['tra_uid'] = temp_data['transactionUID']
+                            await self.__amqpconnector.send(data=data, persistent=True, keys=['action.entry.reverse'], priority=10)
+                            post_tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_address']]))
+                        await asyncio.gather(*post_tasks)
                     # 3rd message loop 2 status
                     elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 'OCCUPIED':
                         # check if camera #2 is bound to column
-                        temp_data=await self.__dbconnector_is.callproc('is_entry_get', rows = 1, values = [data['device_address']])
-                        if not temp_data is None:
-                            temp_data['tra_uid']=temp_data['transactionUID']
-                            await self.__amqpconnector.send(data = temp_data, persistent = True, keys = ['action.entry.loop2'], priority = 9)
-                            photo=None
-                            if not device['camPhoto2'] is None and device['camPhoto2'] != '':
-                                photo=await self._capture_photo(device['camPhoto2'])
-                            await self.__dbconnector_is.callproc('is_entry_loop2_ins', rows = 0, values = [data['device_address'], data['act_uid'], photo, datetime.now()])
-                            temp_data['ampp_id']=data['ampp_id']
-                            temp_data['ampp_type']=data['ampp_type']
-                            await self.__amqpconnector.send(data = temp_data, persistent = True, keys = ['entry.normal'], priority = 8)
+                        temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address'], 0])
+                        data['tra_uid'] = temp_data['transactionUID']
+                        await self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.loop2'], priority=9)
+                        photo = None
+                        if not device['camPhoto2'] is None and device['camPhoto2'] != '':
+                            photo = await self._capture_photo(device['camPhoto2'])
+                        await self.__dbconnector_is.callproc('is_entry_loop2_ins', rows=0, values=[data['device_address'], data['act_uid'], photo, datetime.now()])
+                        temp_data['ampp_id'] = data['ampp_id']
+                        temp_data['ampp_type'] = data['ampp_type']
+                        await self.__amqpconnector.send(data=temp_data, persistent=True, keys=['entry.normal'], priority=8)
+                    elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 'FREE':
+                        temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address'], 0])
+                        data['tra_uid'] = temp_data['transactionUID']
+                        await self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.loop2'], priority=9)
+                        # confirm
+                        await self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_address']])
                 # possible lost ticket entry
                 elif key == 'status.entry.payment':
                     if data['codename'] == 'PaymentStatus' and data['value'] == 'FINISHED_WITH_SUCCESS':
                         # try to fetch data from DB
-                        transit_data=await self.__dbconnector_wp.callproc('wp_entry_get', rows = 1, values = [data['device_id']])
+                        transit_data = await self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id']])
                         if not transit_data is None and transit_data['transactionType'] == 'LOST' and transit_data['transitionFine'] > 0:
-                            tasks=[]
+                            tasks = []
                             # simulate
-                            await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows = 0, values = [data['device_address'], None, transit_data['transactionUID'], json.dumps(transit_data, default=str), datetime.now()])
-                            temp_data=await self.__dbconnector_is.callproc('is_entry_get', rows = 1, values = [data['device_address']])
-                            temp_data['ampp_id']=data['ampp_id']
-                            temp_data['ampp_type']=data['ampp_type']
-                            await self.__amqpconnector.send(data = temp_data, persistent = True, keys = ['entry.lost'], priority = 10)
-                await self.__dbconnector_is.callproc('is_processes_upd', rows = 0, values = [self.name, 1])
+                            await self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_address'], None, transit_data['transactionUID'], json.dumps(transit_data, default=str), datetime.now()])
+                            temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_address']])
+                            temp_data['ampp_id'] = data['ampp_id']
+                            temp_data['ampp_type'] = data['ampp_type']
+                            await self.__amqpconnector.send(data=temp_data, persistent=True, keys=['entry.lost'], priority=10)
+                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
             await self.__logger.error({'module': self.name, 'error': repr(e)})
             pass
@@ -179,7 +211,7 @@ class EntryListener:
             except (ChannelClosed, ChannelInvalidStateError):
                 pass
         else:
-            await self.__dbconnector_is.callproc('is_processes_upd', rows = 0, values = [self.name, 0])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
 
     async def _signal_cleanup(self):
@@ -191,8 +223,8 @@ class EntryListener:
 
     async def _signal_handler(self, signal):
         # stop while loop coroutine
-        self.eventsignal=True
-        tasks=[task for task in asyncio.all_tasks(self.eventloop) if task is not
+        self.eventsignal = True
+        tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
                  asyncio.tasks.current_task()]
         for t in tasks:
             t.cancel()
