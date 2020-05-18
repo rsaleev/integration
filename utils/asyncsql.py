@@ -1,6 +1,7 @@
 import aiomysql
 import asyncio
 import time
+from aiomysql import IntegrityError, ProgrammingError, OperationalError
 
 
 class AsyncDBPool():
