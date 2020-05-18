@@ -218,7 +218,7 @@ receiving_mibs = [
     SNMPObject('FiscalPrinterBD', '.1.3.6.1.4.1.40383.1.2.1.11003.2.3', forced_value='MEMORY_IS_FULL').instance,
     SNMPObject('SmartPayout', '.1.3.6.1.4.1.40383.1.2.2.116', forced_value='JAMMED_NOTE').instance,
     SNMPObject('PaymentStatus', '.1.3.6.1.4.1.40383.1.2.3.3', status_map=PaymentStatus).instance,
-    SNMPObject('PaymentMoneyType', '.1.3.6.1.4.1.40383.1.2.3.1', status_map=PaymentType).instance,
+    SNMPObject('PaymentType', '.1.3.6.1.4.1.40383.1.2.3.1', status_map=PaymentType).instance,
     SNMPObject('PaymentCardType', '.1.3.6.1.4.1.40383.1.2.3.2', status_map=PaymentCardType).instance,
     SNMPObject('PaymentAmount', '.1.3.6.1.4.1.40383.1.2.3.5').instance,
 ]

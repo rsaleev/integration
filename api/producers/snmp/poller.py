@@ -56,6 +56,8 @@ class AsyncSNMPPoller:
         connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
         connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=1, max_size=5).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
+        pid = os.getpid()
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         await self.__logger.info({"module": self.name, "info": "Started"})
         return self
 
@@ -76,57 +78,57 @@ class AsyncSNMPPoller:
                         snmp_object.snmpvalue = res.value
                         if snmp_object.codename == "BarrierLoop1Status":
                             snmp_object.uid = uuid4()
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1'], priority=6)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1', 'passive.loop1'], priority=6)
                         elif snmp_object.codename == "BarrierLoop2Status":
                             snmp_object.uid = uuid4()
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2'], priority=6)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2', 'passive.loop2'], priority=6)
                         elif snmp_object.codename == 'BarrierStatus':
                             snmp_object.uid = uuid4()
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier', 'passive.barrier'], priority=8)
                         elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.paper'], priority=7)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.paper', 'passive.paper'], priority=7)
                         elif snmp_object.codename == 'General':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.general'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.general', 'passive.paper'], priority=8)
                         elif snmp_object.codename == 'Heater':
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.heater'], priority=1)
                         elif snmp_object.codename == 'FanIn' or snmp_object.codename == 'FanOut':
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fan'], priority=1)
                         elif snmp_object.codename == 'UpperDoor' or snmp_object.codename == 'MiddleDoor':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.door'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.door', 'passive.door'], priority=8)
                         elif (snmp_object.codename == 'RoboTicket1' or snmp_object.codename == 'RoboTicket2' or
                                 snmp_object.codename == 'TicketPtinter1' or snmp_object.codename == 'TicketPrinter2'):
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.printer'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.printer', 'passive.ticketdevice'], priority=8)
                         elif snmp_object.codename == 'AlmostOutOfPaper':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets', 'passive.tickets'], priority=8)
                         elif snmp_object.codename == 'IOBoards':
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.ioboards'], priority=8)
                         elif snmp_object.codename == 'PaperDevice1' or snmp_object.codename == 'PaperDevice2':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=5)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets', 'passive.tickets'], priority=5)
                         elif snmp_object.codename == 'IOBoard1.Temperature' or snmp_object.codename == 'IOBoard2.Temperature':
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.temperature'], priority=2)
                         elif snmp_object.codename == 'VoIP':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.voip'], priority=7)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.voip', 'passive.voip'], priority=7)
                         elif snmp_object.codename in ['TicketReader1', 'TicketReader2']:
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.reader'], priority=7)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.reader', 'passive.ticketdevice'], priority=7)
                         elif snmp_object.codename == 'Coinbox':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.cashbox'], priority=9)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinbox'], priority=1)
                         elif snmp_object.codename in ['CubeHopper', 'CoinsReader', 'CoinsHoper1', 'CoinsHopper2', 'CoinsHopper3',
                                                       'CoinBoxTriggered']:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coins'], priority=1)
                         elif snmp_object.codename == 'UPS':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.ups'], priority=5)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.ups', 'passive.ups'], priority=5)
                         elif snmp_object.codename == 'IOCCtalk':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal', 'passive.fiscal'], priority=8)
                         elif snmp_object.codename == 'FiscalPrinterStatus':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal', 'passive.fiscal'], priority=8)
                         elif snmp_object.codename == 'FiscalPrinterBD':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=8)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal', 'passive.fiscal'], priority=8)
                         elif snmp_object.codename in ['12VBoard', '24VBoard', '24ABoard']:
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.boards'], priority=3)
-                        elif snmp_object.codename == 'SmartPayout':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout'], priority=7)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.boards', 'passive.fiscal'], priority=3)
+                        elif snmp_object.codename == 'NotesEscrow':
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout', 'passive.payout'], priority=7)
                         elif snmp_object.codename == 'NotesReader':
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout'], priority=2)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout', 'passive.payout'], priority=7)
                         else:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.others'], priority=1)
                 # handle SNMP exceptions
