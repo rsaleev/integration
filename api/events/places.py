@@ -1,9 +1,9 @@
-from utils.asyncsql import AsyncDBPool
+from utils.asyncsql import AsyncDBPool, ProgrammingError, IntegrityError, OperationalError
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 import configuration as cfg
 import asyncio
-import datetime
+from datetime import datetime
 import json
 import signal
 import os
@@ -55,7 +55,7 @@ class PlacesListener:
             self.__device_type = 0
             self.__ampp_id = int(f'{cfg.ampp_parking_id}00')
             self.__ampp_type = 1
-            self.__ts = datetime.now()
+            self.__ts = datetime.now().timestamp()
 
         @property
         def instance(self):
@@ -70,32 +70,51 @@ class PlacesListener:
                     'device_ip': self.__device_ip}
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger('places.log')
-        await self.__logger.info({'module': self.name, 'info': 'Starting...'})
-        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
-        self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
+        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
+        connections_tasks = []
+        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
+        connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         # listen for loop2 status and lost ticket payment
         await self.__amqpconnector.bind('places_signals', ['status.loop2.*', 'command.physchal.*'], durable=False)
-        await self.__logger.info({'module': self.name, 'info': 'Started'})
+        pid = os.getpid()
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
+        places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+        tasks = []
+        for p in places:
+            tasks.append(self.__dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'],  p['areTotalPark'], p['areFreePark'], p['areType']]))
+            if p['areId'] == cfg.main_area and p['areFreePark'] == 0:
+                warning = self.PlacesWarning('FULL')
+                tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=10))
+            elif p['areId'] == cfg.main_area and p['areFreePark'] > 0:
+                warning = self.PlacesWarning('VACANT')
+                tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
+        await asyncio.gather(*tasks)
+        await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
 
     async def _process(self, redelivered, key, data):
+        tasks = []
         if key in ['status.loop2.entry', 'status.loop2.exit']:
-            places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
+            places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']])
             for p in places:
-                tasks = []
-                tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], None, None, p['areId']]))
-                if p['areId'] == 1:
-                    if p['areFreePark'] == 0:
-                        msg = self.PlacesWarning(data['device_id'], data['device_address'], data['device_ip'], 'FULL')
-                        send_tasks = []
-                        send_tasks.append(self.__amqpconnector.send(msg,  persistent=True, keys=['status.server.places'], priority=10))
-                        send_tasks.append(self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[0, 'Places', 'FULL', datetime.now()]))
-                    else:
-                        await self.__dbconnector_is.callproc('is_status_upd', rows=0, values=[0, 'Places', 'VACANT', datetime.now()])
+                if p['areType'] == 1:
+                    tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], None, None, p['areId']]))
+                    if p['areId'] == 1 and p['areFreePark'] == 0:
+                        warning = self.PlacesWarning('FULL')
+                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
+                    elif p['areId'] == 1 and ['areFreeparl'] > 0:
+                        warning = self.PlacesWarning('VACANT')
+                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
+                elif p['areType'] == 3:
+                    tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[None, None, p['areTotalPark'] - p['areFreePark'], p['areId']]))
+            await asyncio.gather(*tasks)
         elif key == 'command.physchal.in':
-            await self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areFreePark'], 2, p['areId']])
+            await self.__dbconnector_is.callproc('is_places_decrease_upd', rows=0, values=[2, data['area_id']])
+        elif key == 'command.physchal.out':
+            await self.__dbconnector_is.callproc('is_places_increase_upd', rows=0, values=[2, data['area_id']])
 
     # dispatcher
 
@@ -105,6 +124,10 @@ class PlacesListener:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):
                 pass
+            except (IntegrityError, OperationalError, ProgrammingError) as e:
+                await self.__logger.error({'module': self.name, 'error': repr(e)})
+            finally:
+                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         else:
             await asyncio.sleep(0.5)
 

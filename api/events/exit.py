@@ -58,8 +58,8 @@ class ExitListener:
         connections_tasks.append(AsyncSOAP(login=cfg.soap_user, password=cfg.soap_password, parking_id=cfg.object_id, timeout=cfg.soap_timeout, url=cfg.soap_url).connect())
         connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
-        await self.__amqpconnector.bind('exit_signals', ['status.exit.*'], durable=True)
-        pid = os.getppid()
+        await self.__amqpconnector.bind('exit_signals', ['status.*.exit'], durable=True)
+        pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         await self.__logger.info({'module': self.name, 'info': 'Started'})
         return self
@@ -101,15 +101,19 @@ class ExitListener:
                     if not device['camPhoto1'] is None and device['camPhoto1'] != '':
                         images.append(self._capture_photo(device['camPhoto1']))
                         # suppress exception
-                        plate, photo = await asyncio.gather(*images, return_exceptions=True)
+                    futures = await asyncio.gather(*images, return_exceptions=True)
+                    # try-except to suppress unpack error
+                    try:
+                        plate, photo = futures
                         plate_accuracy = plate['rConfidence']
                         plate_img = plate['rImage'] if plate_accuracy > 0 else None
                         await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
-                    else:
-                        plate, _ = await asyncio.gather(*images)
+                    except:
+                        plate, = futures
                         plate_accuracy = plate['rConfidence']
                         plate_img = plate['rImage'] if plate_accuracy > 0 else None
-                        await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, photo, data['act_uid'], datetime.now()])
+
+                        await self.__dbconnector_is.callproc('is_exit_ins', rows=0, values=[data['tra_uid'], data['device_address'], plate_img, plate_accuracy, None, data['act_uid'], datetime.now()])
                 # 2nd message barrier opened
                 elif data['codename'] == 'BarrierStatus' and data['value'] == 'OPENED':
                     transit_data = await self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id']])
@@ -119,8 +123,13 @@ class ExitListener:
                 elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
                     # check if temp data is stored and delete record
                     temp_data = await self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_address']])
-                    if temp_data['transactionData'] is None and temp_data['ts'] >= datetime.now() - timedelta(seconds=3):
-                        await self.__dbconnector_is.callproc('is_exit_del', rows=0, values=[temp_data['transactionUID']])
+                    if temp_data['transactionData'] is None:
+                        await self.__dbconnector_is.callproc('is_entry_del', rows=0, values=[temp_data['transactionUID']])
+                    else:
+                        temp_data = await self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_address']])
+                        temp_data['ampp_id'] = data['ampp_id']
+                        temp_data['ampp_type'] = data['ampp_type']
+                        await self.__amqpconnector.send(data=temp_data, persistent=True, keys=['exit.reversed'], priority=1)
                 # 3rd message loop 2 status
                 elif data['codename'] == 'BarrierLoop2Status' and data['value'] == 'OCCUPIED':
                     # check if camera #2 is bound to column
@@ -132,9 +141,7 @@ class ExitListener:
                     temp_data['ampp_id'] = data['ampp_id']
                     temp_data['ampp_type'] = data['ampp_type']
                     # get services for those entry data must be sent
-                    services = await self.__dbconnector_is.callproc('is_services_get', rows=-1, values=[None, 1, None, None, 1, None, None, None])
-                    keys = [f"{s['serviceName']}.exit" for s in services]
-                    await self.__amqpconnector.send(data=temp_data, persistent=True, keys=keys, priority=1)
+                    await self.__amqpconnector.send(data=temp_data, persistent=True, keys=['exit.normal'], priority=1)
                 await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except:
             raise

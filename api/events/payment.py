@@ -8,6 +8,7 @@ from utils.asyncamqp import AsyncAMQP
 import json
 import configuration as cfg
 import os
+import functools
 
 
 class PaymentListener:
@@ -73,33 +74,43 @@ class PaymentListener:
     async def _initialize(self) -> None:
         self.__logger = await AsyncLogger().getlogger(cfg.log)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
-        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
-        self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        self.__amqpconnector = await AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect()
-        await self.__amqpconnector.bind('statuses', ['status.payment'])
-        self.__cashiers = await self.__dbconnector_is.callproc('is_cashiers_get', rows=-1, values=[])
-        inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[])
+        connections_tasks = []
+        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
+        connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
+        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
+        await self.__amqpconnector.bind('payment_signals', ['status.payment.*'], durable=True)
+        cashiers = await self.__dbconnector_is.callproc('is_cashier_get', rows=-1, values=[None])
         tasks = []
-        for inv in inventories:
-            device = next(d for d in self.__cashiers if d['terId'] == inv['curTerId'])
-            tasks.append(self.__dbconnector_is.allproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
-                                                                                           device['terAddress'], device['terDescription'], device['amppId'], inv['curChannelId'], inv['curChannelDescr']]))
+        for c in cashiers:
+            tasks.append(self._initialize_inventory(c['terId'], c['cashboxLimit']))
         await asyncio.gather(*tasks)
-        pid = os.getppid()
+        pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         await self.__logger.info({'module': self.name, 'msg': 'Started...'})
         return self
 
+    async def _initialize_inventory(self, device_id, limit) -> None:
+        inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[device_id])
+        tasks = []
+        for inv in inventories:
+            if inv['curChannelId'] == 1:
+                tasks.append(self.__dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
+                                                                                                inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], None]))
+            elif inv['curChannelId'] == 2:
+                tasks.append(self.__dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
+                                                                                                inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], limit]))
+        money = await self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[device_id])
+        for m in money:
+            tasks.append(self.__dbconnector_is.callproc('is_money_ins', rows=0, values=[device_id, m['curChannelId'], m['curChannelDescr'], m['curValue'], m['curQuantity']]))
+        await asyncio.gather(*tasks)
+
     async def _process_payment(self, data: dict) -> None:
-        payment_data = await self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['terminal_id']])
-        if not payment_data is None:
-            msg = {'transacation_uid': data['tra_uid'],
-                   'data': payment_data}
-            # check working services and extend keys for outgoing message
-            outgoing_keys = []
-            services = await self.__dbconnector_is.callproc('is_services_get', rows=-1, values=[None, 1, None, None, None, 1, None, None])
-            keys = [f"{s['serviceName']}.payment" for s in services]
-            await self.__amqpconnector.send(msg,  persistent=True, keys=keys, priority=1)
+        temp_data = await self.__dbconnector_is.callproc('is_payment_get', rows=1, values=[data['device_id']])
+        if not temp_data is None:
+            temp_data['ampp_id'] = data['ampp_id']
+            temp_data['ampp_type'] = data['ampp_type']
+            await self.__amqpconnector.send(temp_data,  persistent=True, keys=['payment.data'], priority=1)
 
     async def _process_money(self, data: dict) -> None:
         tasks = []
@@ -109,44 +120,73 @@ class PaymentListener:
         await asyncio.gather(*tasks)
 
     async def _process_inventory(self, data: dict) -> None:
-        tasks = []
-        inventories = await self.__dbconnector_wp('wp_inventory_get', rows=-1, values=[data['device_id']])
-        cashier = next(c for c in self.__cashiers if c['terId'] == data['device_id'])
-        cashbox = next(inv['curTotal'] for inv in inventories if inv['channelId'] == 2)
-        if cashier['storageLimit'] == cashbox:
+        check_tasks = []
+        check_tasks.append(self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[data['device_id']]))
+        check_tasks.append(self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[data['device_id']]))
+        check_tasks.append(self.__dbconnector_is.callproc('is_inventory_get', rows=-1, values=[data['device_id']]))
+        wp_inv, wp_money, is_inv = await asyncio.gather(*check_tasks)
+        wp_cashbox = next(wp_i for wp_i in wp_inv if wp_i['curChannelId'] == 2)
+        is_cashbox = next(is_i for is_i in is_inv if is_i['storageType'] == 2)
+        proc_tasks = []
+        for inv in wp_inv:
+            proc_tasks.append(self.__dbconnector_is.callproc('is_inventory_upd', rows=0, values=[data['device_id'], inv['curChannelId'], inv['curTotal']]))
+        for m in wp_money:
+            proc_tasks.append(self.__dbconnector_is.callproc('is_money_upd', rows=0, values=[m['curTerId'], m['curChannelId'], m['curValue'], m['curQuantity'], m['payCreation']]))
+        await asyncio.gather(*proc_tasks)
+        services = await self.__dbconnector_is.callproc('is_services_get', rows=-1, values=[None, 1, 1, None, None, None, None, None])
+        if wp_cashbox['curTotal'] == is_cashbox['storageLimit']:
             inv_warning = self.InventoryWarning(data['device_id'], data['device_address'], data['device_ip'], data['device_type'], data['ampp_id'], data['ampp_type'], 'ALMOST_FULL')
-            tasks.append(self.__amqpconnector.send(inv_warning.instance,  persistent=True, keys=['status.cashbox'], priority=10))
         else:
             inv_warning = self.InventoryWarning(data['device_id'], data['device_address'], data['device_ip'], data['device_type'], data['ampp_id'], data['ampp_type'], 'OK')
-            tasks.append(self.__amqpconnector.send(inv_warning.instance,  persistent=True, keys=['status.cashbox'], priority=5))
-        for inv in inventories:
-            tasks.append(self.__dbconnector_is.callproc('is_invenotry_upd', rows=0, values=[data['device_id'], inv['curChannelId'], inv['curTotal']]))
-        await asyncio.gather(*tasks)
+            await self.__amqpconnector.send(inv_warning.instance,  persistent=True, keys='warning.autocash.inventory', priority=7)
 
     async def _process(self, redelivered, key, data) -> None:
         tasks = []
         if not redelivered:
-            if data['value'] in ['FINISHED_WITH_SUCCESS', 'FINISHED_WITH_ISSUES']:
-                tasks.append(self._process_payment(data))
-                tasks.append(self._process_money(data))
-                tasks.append(self._process_inventory(data))
+            if data['codename'] == 'PaymentType':
+                await self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'], data['device_address'], data['act_uid'], 'PAYMENT_TYPE_SELECTION', datetime.now()])
+            elif data['codename'] == 'PaymentStatus':
+                payment_data = await self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['device_id']])
+                if data['value'] == 'ZONE_PAYMENT':
+                    await self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'], data['device_address'], data['act_uid'], 'PAYMENT_PROCESSING', datetime.now()])
+                elif data['value'] == 'FINISHED_WITH_SUCCESS':
+                    await self.__dbconnector_is.callproc('is_payment_data_upd', rows=0, values=[data['device_address'], json.dumps(payment_data, default=str)])
+                    await self.__dbconnector_is.callproc('is_payment_status_upd', rows=0, values=[data['device_address'], 'PAYMENT_ENDED_WITH_SUCCESS', data['act_uid']])
+                    temp_data = await self.__dbconnector_is.callproc('is_payment_get', rows=1, values=[data['device_address']])
+                    temp_data['ampp_id'] = data['ampp_id']
+                    temp_data['ampp_type'] = data['ampp_type']
+                    tasks.append(self.__amqpconnector.send(data=temp_data, persistent=True, keys=['payment.ended'], priority=1))
+                    tasks.append(self._process_payment(data))
+                    tasks.append(self._process_inventory(data))
+                elif data['value'] == 'FINISHED_WITH_ISSUES':
+                    await self.__dbconnector_is.callproc('is_payment_data_upd', rows=0, values=[data['device_address'], json.dumps(payment_data, default=str)])
+                    await self.__dbconnector_is.callproc('is_payment_status_upd', rows=0, values=[data['device_address'], 'PAYMENT_ENDED_WITH_ISSUES', data['act_uid']])
+                    tasks.append(self.__amqpconnector.send(data=temp_data, persistent=True, keys=['payment.ended'], priority=1))
+                    tasks.append(self._process_payment(data))
+                    tasks.append(self._process_inventory(data))
+                elif data['value'] == 'PAYMENT_CANCELLED':
+                    temp_data = await self.__dbconnector_is('is_payment_get', rows=1, values=[data['device_address']])
+                    temp_data['ampp_id'] = data['ampp_id']
+                    temp_data['ampp_type'] = data['ampp_type']
+                    await self.__dbconnector_is.callproc('is_payment_status_upd', rows=0, values=[data['device_address'], 'PAYMENT_CANCELLED', data['act_uid']])
+                await asyncio.gather(*tasks)
 
     # dispatcher
-    async def _dispatch(self):
+    async def _dispatch(self) -> None:
         while not self.eventsignal:
             await self.__amqpconnector.receive(self._process)
         else:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
 
-    async def _signal_cleanup(self):
+    async def _signal_cleanup(self) -> None:
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
         await self.__dbconnector_is.disconnect()
         await self.__dbconnector_wp.disconnect()
         await self.__amqpconnector.disconnect()
         await self.__logger.shutdown()
 
-    async def _signal_handler(self, signal):
+    async def _signal_handler(self, signal) -> None:
         # stop while loop coroutine
         self.eventsignal = True
         tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
