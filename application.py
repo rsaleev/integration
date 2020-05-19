@@ -22,7 +22,6 @@ from utils.asynclog import AsyncLogger
 from service import webservice
 from api.producers.rdbs.plates import PlatesDataMiner
 import sys
-import os
 
 
 class Application:
@@ -119,16 +118,21 @@ class Application:
             exit_listener_proc = Process(target=exit_listener.run, name=exit_listener.name)
             self.processes.append(entry_listener_proc)
             exit_listener_proc.start()
+            # payment listener
+            payment_listener = PaymentListener()
+            payment_listener_proc = Process(target=payment_listener.run, name=payment_listener.name)
+            self.processes.append(payment_listener_proc)
+            payment_listener_proc.start()
             # ping poller process
             icmp_poller = AsyncPingPoller()
             icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
             self.processes.append(icmp_poller_proc)
             icmp_poller_proc.start()
-            # # SNMP poller process
+            # # # SNMP poller process
             snmp_poller = AsyncSNMPPoller()
             snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
             self.processes.append(snmp_poller_proc)
-            snmp_poller_proc.start()
+            # snmp_poller_proc.start()
             # # # SNMP receiver process
             snmp_receiver = AsyncSNMPReceiver()
             snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
@@ -154,10 +158,19 @@ class Application:
             pass
 
     async def _signal_handler(self, signal):
+        shutdown_ready = False
         for p in self.processes:
             p.terminate()
-        self.eventloop.close()
-        os._exit(0)
+        for p_check in self.processes:
+            if not p.is_alive():
+                shutdown_ready = True
+        if shutdown_ready:
+            try:
+                self.eventloop.stop()
+                self.eventloop.close()
+            except:
+                pass
+            os._exit(0)
 
     def run(self):
        # use own event loop

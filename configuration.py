@@ -19,7 +19,7 @@ parser.read(CONFIGURATION)
 server_ip = parser.get("WISEPARK", "server_ip")
 object_id = parser.get("WISEPARK", "site_id")
 
-
+main_area = parser.getint("WISEPARK", "main_area")
 ### WISEPARK SOAP SERVICE ###
 
 soap_user = parser.get("WISEPARK", "soap_username")
@@ -45,7 +45,7 @@ wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
 rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
 
 ### AMPP ###
-ampp_parking_id = parser.getint("AMPP", "parking_id")
+ampp_parking_id = parser.getint("CMIU", "parking_id")
 
 ### METRO ###
 converter_url = parser.get("METRO", "info_url")
