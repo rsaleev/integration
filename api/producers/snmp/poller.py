@@ -76,14 +76,12 @@ class AsyncSNMPPoller:
                         snmp_object.ampp_type = device['amppType']
                         snmp_object.device_ip = device['terIp']
                         snmp_object.snmpvalue = res.value
+                        snmp_object.act_uid = uuid4()
                         if snmp_object.codename == "BarrierLoop1Status":
-                            snmp_object.uid = uuid4()
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop1', 'passive.loop1'], priority=6)
                         elif snmp_object.codename == "BarrierLoop2Status":
-                            snmp_object.uid = uuid4()
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2', 'passive.loop2'], priority=6)
                         elif snmp_object.codename == 'BarrierStatus':
-                            snmp_object.uid = uuid4()
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier', 'passive.barrier'], priority=8)
                         elif snmp_object.codename in ["AlmostOutOfPaper", "PaperDevice1", "PaperDevice2"]:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.paper', 'passive.paper'], priority=7)
