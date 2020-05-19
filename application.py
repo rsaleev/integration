@@ -54,8 +54,10 @@ class Application:
                 config = json.loads(device['terJSON'])
                 ocr_mode = 'unknown'
                 if len(config.items) > 0:
-                    ocr_mode = config['CameraMode']
-                ocr_mode_string = 'freerun' if ocr_mode == 1 else 'trigger'
+                    if config['CameraMode'] == 1:
+                        ocr_mode = 'trigger'
+                    elif config['CameraMode'] == 0:
+                        ocr_mode = 'freerun'
                 await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  ocr_mode, device['terCamPhoto1'],
                                                                                       device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
                                                                                       imager_enabled,
