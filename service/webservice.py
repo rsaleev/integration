@@ -63,7 +63,7 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
 
 app = FastAPI(title="Remote management Module",
               description="Wisepark Monitoring and Remote Management Module",
-              version="0.0.1", debug=cfg.asgi_debug,
+              version="0.0.1", debug=True if cfg.asgi_log == 'debug' else False,
               docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(control.router, dependencies=[Depends(get_api_key)])
@@ -123,4 +123,4 @@ async def rdbs():
 
 
 def run():
-    uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level=cfg.asgi_debug)
+    uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level=cfg.asgi_log)

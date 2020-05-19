@@ -161,16 +161,16 @@ class Application:
         shutdown_ready = False
         for p in self.processes:
             p.terminate()
-        for p_check in self.processes:
-            if not p.is_alive():
-                shutdown_ready = True
-        if shutdown_ready:
-            try:
-                self.eventloop.stop()
-                self.eventloop.close()
-            except:
-                pass
-            os._exit(0)
+        # for p_check in self.processes:
+        #     if not p.is_alive():
+        #         shutdown_ready = True
+        # if shutdown_ready:
+        try:
+            self.eventloop.stop()
+            self.eventloop.close()
+        except:
+            pass
+        os._exit(0)
 
     def run(self):
        # use own event loop
