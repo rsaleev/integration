@@ -50,7 +50,7 @@ class Application:
                                                                               device['terIPV4'], device['terVersion']])
         imager_enabled = 1 if device_is['barcode_reader_enabled'] else 0
         if device['terType'] in [1, 2]:
-            if not device['terJSON'] is None:
+            if not device['terJSON'] is None and device['terJSON'] != '':
                 config = json.loads(device['terJSON'])
                 ocr_mode = 'unknown'
                 if len(config.items) > 0:
