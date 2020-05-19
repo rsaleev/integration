@@ -63,44 +63,41 @@ class AsyncSNMPReceiver:
                     snmp_object.ampp_id = device['amppId']
                     snmp_object.ampp_type = device['amppType']
                     snmp_object.device_ip = host
+                    snmp_object.act_uid = uuid4()
                     # triggers that produce transaction event
                     # partition events to active that must contain transaction uid and passive that don't contain transaction uid
-                    if snmp_object.codename in 'BarrierLoop1Status':
-                        # add uid
-                        snmp_object.tra_uid = uuid4()
-                        snmp_object.act_uid = uuid4()
-                        if snmp_object.device_type == 1:
-                            await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.entry', 'active.loop1'], priority=10)
-                        elif snmp_object.device_type == 2:
-                            await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.exit', 'active.loop1'], priority=10)
+                    if snmp_object.codename == 'BarrierLoop1Status':
+                        if snmp_object.snmpvalue == 'OCCUPIED':
+                            snmp_object.tra_uid = uuid4()
+                            if snmp_object.device_type == 1:
+                                await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.entry', 'active.status.loop1'], priority=10)
+                            elif snmp_object.device_type == 2:
+                                await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.exit', 'active.status.loop1'], priority=10)
+                        if snmp_object.snmpvalue == 'FREE':
+                            if snmp_object.device_type == 1:
+                                await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.entry', 'passive.status.loop1'], priority=10)
+                            elif snmp_object.device_type == 2:
+                                await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.exit', 'passive.status.loop1'], priority=10)
                     elif snmp_object.codename == 'PaymentType':
-                        snmp_object.act_uid = uuid4()
-                        snmp_object.tra_uid = uuid4()
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.type'], priority=10)
                     elif snmp_object.codename == 'PaymentAmount':
                         # add transaction uid
-                        snmp_object.act_uid = uuid4()
-                        snmp_object.tra_uid = uuid4()
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.amount'], priority=10)
                     elif snmp_object.codename == 'PaymentCardType':
-                        snmp_object.act_uid = uuid4()
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.cardtype'], priority=10)
                     elif snmp_object.codename == 'PaymentStatus':
                         if snmp_object.value == 'ZONE_PAYMENT':
-                            snmp_object.act_uid = uuid4()
                             snmp_object.tra_uid = uuid4()
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment', 'active.payment'], priority=10)
                         else:
-                            snmp_object.act_uid = uuid4()
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment', 'active.payment.status'], priority=10)
-                    # triggers that produce action uid but nor transaction uid
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment', 'passive.payment'], priority=10)
                     elif snmp_object.codename == 'BarrierLoop2Status':
                         # add uid
-                        snmp_object.act_uid = uuid4()
                         if snmp_object.device_type == 1:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2.entry', 'active.loop2'], priority=10)
                         elif snmp_object.device_type == 2:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2.exit', 'active.loop2'], priority=10)
                     elif snmp_object.codename == 'BarrierStatus':
-                        snmp_object.act_uid = uuid4()
                         if snmp_object.device_type == 1:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier.entry', 'active.barrier'], priority=10)
                         elif snmp_object.device_type == 2:

@@ -198,7 +198,6 @@ class EntryListener:
                             temp_data['ampp_id'] = data['ampp_id']
                             temp_data['ampp_type'] = data['ampp_type']
                             await self.__amqpconnector.send(data=temp_data, persistent=True, keys=['entry.lost'], priority=10)
-                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
             await self.__logger.error({'module': self.name, 'error': repr(e)})
             pass
@@ -206,6 +205,7 @@ class EntryListener:
     # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
             try:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):

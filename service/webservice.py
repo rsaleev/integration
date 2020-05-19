@@ -123,4 +123,4 @@ async def rdbs():
 
 
 def run():
-    uvicorn.run(app=app, host='0.0.0.0', port=8081, workers=cfg.asgi_workers, log_level='info')
+    uvicorn.run(app=app, host=cfg.asgi_host, port=cfg.asgi_port, workers=cfg.asgi_workers, log_level=cfg.asgi_debug)

@@ -120,6 +120,7 @@ class PlacesListener:
 
     async def _dispatch(self):
         while not self.eventsignal:
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
             try:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):
@@ -129,7 +130,7 @@ class PlacesListener:
             finally:
                 await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         else:
-            await asyncio.sleep(0.5)
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})

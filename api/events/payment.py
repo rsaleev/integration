@@ -4,7 +4,7 @@ import signal
 from dataclasses import dataclass
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
-from utils.asyncamqp import AsyncAMQP
+from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 import json
 import configuration as cfg
 import os
@@ -102,7 +102,7 @@ class PaymentListener:
                                                                                                 inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], limit]))
         money = await self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[device_id])
         for m in money:
-            tasks.append(self.__dbconnector_is.callproc('is_money_ins', rows=0, values=[device_id, m['curChannelId'], m['curChannelDescr'], m['curValue'], m['curQuantity']]))
+            tasks.append(self.__dbconnector_is.callproc('is_money_ins', rows=0, values=[device_id, m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']]))
         await asyncio.gather(*tasks)
 
     async def _process_payment(self, data: dict) -> None:
@@ -174,7 +174,11 @@ class PaymentListener:
     # dispatcher
     async def _dispatch(self) -> None:
         while not self.eventsignal:
-            await self.__amqpconnector.receive(self._process)
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
+            try:
+                await self.__amqpconnector.receive(self._process)
+            except (ChannelClosed, ChannelInvalidStateError):
+                pass
         else:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
             await asyncio.sleep(0.5)
