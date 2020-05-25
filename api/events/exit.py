@@ -4,7 +4,6 @@ from dateutil import parser as dp
 import asyncio
 from datetime import datetime
 import json
-import cv2
 import base64
 import functools
 import uuid
