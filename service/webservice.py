@@ -37,7 +37,7 @@ async def get_api_key(
 ):
     if api_key_header:
         secret = hashlib.sha256((ts_key_header+API_KEY).encode()).hexdigest()
-        if api_key_header != secret or int(datetime.now().timetsmap()) - int(ts_key_header) > 5:
+        if api_key_header != secret or int(datetime.now().timestamp()) - int(ts_key_header) > 5:
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
             )
