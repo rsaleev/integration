@@ -13,20 +13,31 @@ from starlette.background import BackgroundTasks
 from service import settings as ws
 from pystemd.exceptions import PystemdRunError
 import asyncio
+from typing import Optional
+from pydantic import BaseModel
 
 router = APIRouter()
+
+
+class ServiceConfigRequest(BaseModel):
+    enabled: int
+    url: Optional[str]
+    entry_notify: Optional[int]
+    exit_notify: Optional[int]
+    payment_notify: Optional[int]
+    status_notify: Optional[int]
+    money_notify: Optional[int]
+    invenotry_notify: Optional[int]
 
 
 @router.get('/rest/monitoring/services')
 async def get_services():
     try:
         services = await ws.dbconnector_is.callproc('is_services_get', rows=-1, values=[None, None, None, None, None, None, None, None])
-        print(services)
         for s in services:
             s['processes'] = await ws.dbconnector_is.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None])
         return Response(json.dumps(services, default=str), status_code=200, media_type='application/json')
     except Exception as e:
-        print(e)
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 
@@ -42,7 +53,7 @@ async def get_service(service_name):
 
 
 @router.get('/rest/monitoring/services/{service_name}/{operation}')
-async def upd_services(service_name, operation):
+async def control_services(service_name, operation):
     tasks = BackgroundTasks()
     try:
         unit = Unit(f"{service_name}.service".encode())
@@ -63,3 +74,6 @@ async def upd_services(service_name, operation):
             return Response(json.dumps({'error': 'BAD_REQUEST'}), status_code=403, media_type='application/json')
     except DBusFileNotFoundError:
         return Response(json.dumps({'error': 'BAD_REQUEST'}), status_code=403, media_type='application/json')
+
+
+

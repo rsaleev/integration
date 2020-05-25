@@ -22,6 +22,12 @@ object_id = parser.get("WISEPARK", "site_id")
 main_area = parser.getint("WISEPARK", "main_area")
 ### WISEPARK SOAP SERVICE ###
 
+
+object_latitude = parser.getfloat("AMPP", "parking_latitude")
+object_longitude = parser.getfloat("AMPP", "parking_longitude")
+object_address = parser.get("AMPP", "parking_address")
+
+
 soap_user = parser.get("WISEPARK", "soap_username")
 soap_password = parser.get("WISEPARK", "soap_password")
 soap_url = parser.get("WISEPARK", "soap_url")
@@ -71,7 +77,7 @@ amqp_user = parser.get("INTEGRATION", "amqp_user")
 amqp_password = parser.get("INTEGRATION", "amqp_password")
 amqp_host = parser.get("INTEGRATION", "amqp_host")
 
-asgi_host = parser.get("REMOTE", "asgi_host")
-asgi_port = parser.getint("REMOTE", "asgi_port")
-asgi_workers = parser.getint("REMOTE", "asgi_workers")
-asgi_log = parser.get("REMOTE", "asgi_log")
+asgi_host = parser.get("INTEGRATION", "asgi_host")
+asgi_port = parser.getint("INTEGRATION", "asgi_port")
+asgi_workers = parser.getint("INTEGRATION", "asgi_workers")
+asgi_log = parser.get("INTEGRATION", "asgi_log")

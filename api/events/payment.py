@@ -143,7 +143,7 @@ class PaymentListener:
     async def _process(self, redelivered, key, data) -> None:
         tasks = []
         if not redelivered:
-            if data['codename'] == 'PaymentType':
+            if data['codename'] == 'PaymentStatus':
                 await self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'], data['device_address'], data['act_uid'], 'PAYMENT_TYPE_SELECTION', datetime.now()])
             elif data['codename'] == 'PaymentStatus':
                 payment_data = await self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['device_id']])
@@ -179,9 +179,10 @@ class PaymentListener:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):
                 pass
+            except asyncio.CancelledError:
+                pass
         else:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
-            await asyncio.sleep(0.5)
 
     async def _signal_cleanup(self) -> None:
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})

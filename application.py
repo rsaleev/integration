@@ -36,6 +36,9 @@ class Application:
         self.eventloop = None
         self.alias = 'integration'
 
+    async def _initialize_info(self) -> None:
+        await self.__dbconnector_is.callproc('is_info_ins', rows=0, values=[cfg.object_id, cfg.ampp_parking_id, cfg.object_latitude, cfg.object_longitude, cfg.object_address])
+
     async def _initialize_server(self) -> None:
         ampp_id_mask = cfg.ampp_parking_id * 100
         service_version = await self.__soapconnector.client.service.GetVersion()
@@ -53,7 +56,7 @@ class Application:
             if not device['terJSON'] is None and device['terJSON'] != '':
                 config = json.loads(device['terJSON'])
                 ocr_mode = 'unknown'
-                if len(config.items) > 0:
+                if len(config.items()) > 0:
                     if config['CameraMode'] == 1:
                         ocr_mode = 'trigger'
                     elif config['CameraMode'] == 0:
@@ -98,6 +101,7 @@ class Application:
             mapping = json.loads(f.read())
             f.close()
             tasks = []
+            tasks.append(self._initialize_info())
             tasks.append(self._initialize_server())
             for d in devices:
                 tasks.append(self._initialize_device(d, mapping['devices']))
@@ -127,7 +131,7 @@ class Application:
             payment_listener = PaymentListener()
             payment_listener_proc = Process(target=payment_listener.run, name=payment_listener.name)
             self.processes.append(payment_listener_proc)
-            payment_listener_proc.start()
+            # payment_listener_proc.start()
             # ping poller process
             icmp_poller = AsyncPingPoller()
             icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
@@ -137,7 +141,7 @@ class Application:
             snmp_poller = AsyncSNMPPoller()
             snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
             self.processes.append(snmp_poller_proc)
-            # snmp_poller_proc.start()
+            snmp_poller_proc.start()
             # # # SNMP receiver process
             snmp_receiver = AsyncSNMPReceiver()
             snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)

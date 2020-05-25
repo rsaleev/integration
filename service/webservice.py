@@ -9,7 +9,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.responses import Response, JSONResponse, PlainTextResponse
 from starlette.requests import Request
 from starlette.background import BackgroundTask, BackgroundTasks
-from service.routes import control, data, logs, places, services, devices, subscription, ticket, converters
+from service.routes import control, data, logs, places, services, devices, subscription, ticket, converters, parkconfig
 import configuration as cfg
 from service import settings as ws
 import nest_asyncio
@@ -63,7 +63,7 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
 
 app = FastAPI(title="Remote management Module",
               description="Wisepark Monitoring and Remote Management Module",
-              version="0.0.1", debug=True if cfg.asgi_log == 'debug' else False,
+              version="0.0.1 BETA 1", debug=True if cfg.asgi_log == 'debug' else False,
               docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(control.router, dependencies=[Depends(get_api_key)])
@@ -75,6 +75,7 @@ app.include_router(devices.router, dependencies=[Depends(get_api_key)])
 app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
 app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
 app.include_router(converters.router, dependencies=[Depends(get_api_key)])
+app.include_router(parkconfig.router, dependencies=[Depends(get_api_key)])
 
 
 @app.on_event('startup')
@@ -82,10 +83,6 @@ async def startup():
     ws.logger = await ws.logger.getlogger(cfg.log)
     await ws.dbconnector_is.connect()
     await ws.dbconnector_wp.connect()
-    ws.devices = await ws.dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
-    wp_devices = await ws.dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
-    ws.autocashiers = [d for d in wp_devices if d['terType'] == 3]
-    ws.gates = [d for d in wp_devices if d['terType'] in [1, 2]]
     await ws.soapconnector.connect()
     await ws.amqpconnector.connect()
 
@@ -94,6 +91,8 @@ async def startup():
 async def shutdown():
     await ws.dbconnector_wp.disconnect()
     await ws.dbconnector_is.disconnect()
+    await ws.soapconnector.disconnect()
+    await ws.amqpconnector.disconnect()
     await ws.logger.warning({'module': name, 'info': 'Webservice is shutting down'})
     await ws.logger.shutdown()
 
@@ -103,16 +102,6 @@ async def homepage():
     return {'title': app.title,
             'description': app.description,
             'version': app.version}
-
-
-@app.post('/extend')
-async def test_extend(paid: float):
-    return {'paid': paid}
-
-
-@app.get('/test')
-async def test_page():
-    return 'OK'
 
 
 @app.get('/status')

@@ -83,59 +83,55 @@ def check_payonline_ip(cls, v):
 
 @router.get('/api/integration/v1/devices')
 async def get_devices():
-    return ws.devices
+    data = await ws.dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
+    return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
 
 
 @router.get('/api/integration/v1/device/{ter_id}/configuration')
 async def get_configuration(ter_id):
     try:
-        device_type = next((device['terType'] for device in ws.devices if device['terId'] == ter_id), None)
-        if not device_type is None:
-            if device_type in [1, 2]:
-                data = await ws.dbconnector_is.callproc('is_column_get', rows=1, values=[ter_id, None])
-                return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
-            elif device_type == 3:
-                data = await ws.dbconnector_is.callproc('is_cashier_get', rows=1, values=[ter_id, None])
-                return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
+        tasks = []
+        tasks.append(ws.dbconnector_is.callproc('is_column_get', rows=1, values=[ter_id]))
+        tasks.append(ws.dbconnector_is.callproc('is_cashier_get', rows=1, values=[ter_id]))
+        column, cashier = await asyncio.gather(*tasks)
+        if not column is None and cashier is None:
+            return Response(json.dumps(column, default=str), status_code=200, media_type='application/json')
+        elif column is None and cashier is not None:
+            return Response(json.dumps(cashier, default=str), status_code=200, media_type='application/json')
         else:
-            data = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
-            return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
+            resp = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
+            return Response(json.dumps(resp, default=str), status_code=403, media_type='application/json')
     except Exception as e:
-        {'error': 'BAD REQUEST', 'comment': repr(e)}
-        return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
+        resp = {'error': 'BAD REQUEST', 'comment': repr(e)}
+        return Response(json.dumps(resp, default=str), status_code=403, media_type='application/json')
 
 
 @router.get('/api/integration/v1/device/{ter_id}/statuses')
 async def get_statuses(ter_id):
-    try:
-        device_type = next((device['terType'] for device in ws.devices if device['terId'] == ter_id), None)
-        if not device_type is None:
-            data = await ws.dbconnector_is.callproc('is_status_get', rows=1, values=[ter_id, None])
-            data_out = ([{"terId": key, "camPlateData": [({'codename': g['stcodename'], 'value':g['statusVal'], 'datetime':g['statusTS']}) for g in group]}
-                         for key, group in groupby(data, key=lambda x: x['terId'])])
-            return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
-        else:
-            data = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
-            return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
-    except Exception as e:
-        {'error': 'BAD REQUEST', 'comment': repr(e)}
-        return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
+    data = await ws.dbconnector_is.callproc('is_status_get', rows=-1, values=[ter_id, None])
+    if not data is None:
+        return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
+    else:
+        resp = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
+        return Response(json.dumps(resp, default=str), status_code=403, media_type='application/json')
 
 
 @router.post('/api/integration/v1/device/{ter_id}/configuration')
 async def modify_device_config(ter_id, params: DeviceRequestConfig):
     try:
-        device_type = next((device['terType'] for device in ws.devices if device['terId'] == ter_id), None)
-        if not device_type is None:
-            if device_type in (1, 2):
-                await ws.dbconnector_is.callproc('is_column_upd', rows=0, values=[ter_id, params.terminal_address,
-                                                                                  params.terminal_area_id, params.terminal_type, params.terminal_description, params.ampp_id, params.ampp_type, params.terminal_ip,
-                                                                                  params.cam_plate_ip, params.cam_photo_1_ip, params.cam_photo_2_ip, params.imager_ip, params.imager_enabled, params.ticket_device])
-                return Response(status_code=204, media_type='application/json')
-            elif device_type == 3:
-                await ws.dbconnector_is.callproc('is_cashier_upd', values=[ter_id, params.terminal_address,
-                                                                           params.terminal_area_id, params.terminal_type, params.terminal_description, params.ampp_id, params.ampp_type, params.terminal_ip, params.cashbox_capacity, params.cashbox_limit,
-                                                                           params.uniteller_id, params.uniteller_ip, params.payonline_id, params.uniteller_ip, params.imager_ip, params.imager_enabled])
+        tasks = []
+        tasks.append(ws.dbconnector_is.callproc('is_column_get', rows=1, values=[ter_id]))
+        tasks.append(ws.dbconnector_is.callproc('is_cashier_get', rows=1, values=[ter_id]))
+        column, cashier = await asyncio.gather(*tasks)
+        if column:
+            await ws.dbconnector_is.callproc('is_column_upd', rows=0, values=[ter_id, params.terminal_address,
+                                                                              params.terminal_area_id, params.terminal_type, params.terminal_description, params.ampp_id, params.ampp_type, params.terminal_ip,
+                                                                              params.cam_plate_ip, params.cam_photo_1_ip, params.cam_photo_2_ip, params.imager_ip, params.imager_enabled, params.ticket_device])
+            return Response(status_code=204, media_type='application/json')
+        elif cashier:
+            await ws.dbconnector_is.callproc('is_cashier_upd', values=[ter_id, params.terminal_address,
+                                                                       params.terminal_area_id, params.terminal_type, params.terminal_description, params.ampp_id, params.ampp_type, params.terminal_ip, params.cashbox_capacity, params.cashbox_limit,
+                                                                       params.uniteller_id, params.uniteller_ip, params.payonline_id, params.uniteller_ip, params.imager_ip, params.imager_enabled])
         else:
             data = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
             return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
@@ -147,14 +143,21 @@ async def modify_device_config(ter_id, params: DeviceRequestConfig):
 @router.post('/api/integration/v1/device/{ter_id}/statuses')
 async def modify_device_statuses(ter_id, params: DeviceRequstStatus):
     try:
-        if ter_id in ws.devices:
+        device = await ws.dbconnector_is.callproc('is_device_get', rows=1, values=[ter_id, None, None, None, None])
+        if device:
             if params.operation == 'add':
                 await ws.dbconnector_is.callproc('is_status_ins', rows=0, values=[ter_id, params.status])
                 return Response(status_code=204, media_type='application/json')
             elif params.operation == 'del':
                 await ws.dbconnусtor_is.callproc('is_status_del', rows=0, values=[ter_id, params.status])
                 return Response(status_code=204, media_type='application/json')
+            else:
+                data = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
+                return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
+        else:
+            data = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
+            return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
     except Exception as e:
         {'error': 'BAD REQUEST', 'comment': repr(e)}
         data = {'error': 'BAD REQUEST', 'comment': repr(e)}
-        return Response(json.dumps(data, default=str), status_code=403, media_type='application/json')
+        return Response(json.dumps(data, default=str), status_code=500, media_type='application/json')

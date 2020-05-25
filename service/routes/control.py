@@ -17,18 +17,18 @@ import dateutil.parser as dp
 
 router = APIRouter()
 
-name = "control"
+name = "cmiu.control"
 
 
 class CommandRequest(BaseModel):
-    type: str = "command"
-    error: Optional[int]
+    type: str
+    error: int
     date_event: str
     came_device_id: int
-    devic_ip: Optional[str]
-    device_type: Optional[int]
+    device_ip: Optional[str] = None
+    device_type: Optional[int] = None
     command_number: int
-    device_events_id: Optional[int]
+    device_events_id: Optional[int] = None
 
     @validator('date_event')
     def date_validator(cls, v):
@@ -37,22 +37,28 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
-    type: str = "command"
+    type: str
     error: int = 0
-    device_type: Optional[str]
-    came_device_id: str
-    device_events_id: Optional[str]
+    device_type: int
+    came_device_id: int
+    device_events_id: int
     date_event: str
 
     @validator('date_event', pre=True)
     def date_validator(cls, v):
-        dt = v.strftime('%d-%m-%Y %H:%M:%S')
-        return dt
+        return datetime.now().strftime('%d-%m-%Y %H:%M:%S')
+
+
+class PlacesResponse(BaseModel):
+    type: "places"
+    parking_number: int
+    date_event: str
+    error: int
 
 
 class CommandType(Enum):
-    OPEN = 3
-    CLOSE = 6
+    MANUALLY_OPEN = 3
+    MANUALLY_CLOSE = 6
     LOCK = 9
     UNLOCK = 12
     TURN_OFF = 15
@@ -65,6 +71,9 @@ class CommandType(Enum):
     OPENALLOFF = 31
     TRAFFIC_JAM_ON = 81
     TRAFFIC_JAM_OFF = 82
+    CHALLENGED_IN = 101
+    CHALLENGED_OUT = 102
+    CHALLENGED_OUT_SIM = 103
 
     @staticmethod
     def list():
@@ -72,56 +81,17 @@ class CommandType(Enum):
 
 
 class CommandStatus:
-    def __init__(self, device: dict, command: int, result: bool):
+    def __init__(self, device: dict, codename: str, value: str):
+        self.__device_id = device['terId']
         self.__ampp_id = device['amppId']
         self.__ampp_type = device['amppType']
-        self.__codename = 'Command'
-        self.__command = command
+        self.__codename = codename
+        self.__value = value
         self.__ts = int(datetime.now().timestamp())
         self.__device_ip = device['terIp']
-        self.__device_id = device['terId']
         self.__device_type = device['terType']
         self.__device_address = device['terAddress']
-        self.__result = result
-
-    @property
-    def value(self):
-        return self.__value
-
-    @value.getter
-    def value(self):
-        if self.__value == 3 and self.__result:
-            return 'MANUAL_OPEN'
-        elif self.__value == 3 and not self.__result:
-            return 'ALREADY_OPENED'
-        elif self.__value == 6 and self.__result:
-            return 'MANUAL_CLOSE'
-        elif self.__value == 6 and not self.__result:
-            return 'ALREADY_CLOSED'
-        elif self.__value == 9 and self.__result:
-            return 'LOCKED'
-        elif self.__value == 9 and not self.__result:
-            return 'ALREADY_LOCKED'
-        elif self.__value == 12 and self.__result:
-            return 'UNLOCK'
-        elif self.__value == 12 and not self.__result:
-            return 'ALREADY_UNLOCKED'
-        elif self.__value == 15 and self.__result:
-            return 'TURN_OFF'
-        elif self.__value == 15 and not self.__result:
-            return 'ALREADY_TURNED_OFF'
-        elif self.__value == 18 and self.__result:
-            return 'TURN_ON'
-        elif self.__value == 18 and not self.__result:
-            return 'ALREADY_TURNED_OFF'
-        elif self.__value == 101 and self.__result:
-            return 'CHALLENGED_IN'
-        elif self.__value == 101 and not self.__result:
-            return 'ALREADY_OPENED'
-        elif self.__value == 102 and self.__result:
-            return 'CHALLENGED_OUT'
-        elif self.__value == 102 and not self.__result:
-            return 'ALREADY_OPENED'
+        self.__act_uid = uuid4()
 
     @property
     def instance(self):
@@ -129,11 +99,12 @@ class CommandStatus:
                 'device_address': self.__device_address,
                 'device_type': self.__device_type,
                 'codename': self.__codename,
-                'value': self.value,
+                'value': self.__value,
                 'ts': self.__ts,
                 'ampp_id': self.__ampp_id,
                 'ampp_type': self.__ampp_type,
-                'device_ip': self.__device_ip}
+                'device_ip': self.__device_ip,
+                'act_uid': str(self.__act_uid)}
 
 
 async def open_barrier(device, request):
@@ -145,15 +116,29 @@ async def open_barrier(device, request):
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
     check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
     status, adv_status, gate_status, last_command, network_status = await asyncio.gather(*check_tasks, return_exceptions=True)
-    if (status['statusVal'] == 'OPENED' or
-        adv_status['statusVal'] == 'LOCKED' or
-        gate_status['statusVal'] == 'OUT_OF_SERVICE' or
-        network_status['statusVal'] == 'OFFLINE' or
-            last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+    # check status and generate event for CMIU
+    if status['statusVal'] == 'OPENED':
+        report_status = CommandStatus(device, 'Barrier', 'ALREADY_OPENED')
+        try:
+            await asyncio.wait_for(ws.amqpconnector.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
+        except:
+            pass
+        return False
+    elif (adv_status['statusVal'] == 'LOCKED' or
+          gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+          network_status['statusVal'] == 'OFFLINE' or
+          last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
-        await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
-        result = await ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open')
+        tasks = []
+        tasks.append(ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open'))
+        report_status_pre_execution = CommandStatus(device, 'Command', CommandType(request.command_number).name)
+        tasks.append(ws.amqpconnector.send(report_status_pre_execution.instance, persistent=True, keys=['command.entry.barrier', 'active.barrier'], priority=10))
+        futures = await asyncio.gather(*tasks)
+        result = futures[0]
+        if result:
+            report_status_post_execution = CommandStatus(device, 'BarrierStatus', 'MANUALLY_OPENED')
+            ws.amqpconnector.send(report_status_pre_execution.instance, persistent=True, keys=['command.entry.barrier', 'active.barrier'], priority=10)
         return result
 
 
@@ -247,7 +232,7 @@ async def turnon_device(device, request):
     status, last_command, network_status = await asyncio.gather(*check_tasks)
     if (status['statusVal'] == 'IN_SERVICE' or
         network_status['statusVal'] == 'OFFLINE' or
-            last_command['statusVal'] == 'TURN_OFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+            last_command['statusVal'] == 'TURN_ON' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
         await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
@@ -264,7 +249,7 @@ async def reboot_device(device, request):
     status, last_command, network_status = await asyncio.gather(*check_tasks)
     if (status['statusVal'] == 'REBOOT' or
         network_status['statusVal'] == 'OFFLINE' or
-            last_command['statusVal'] == 'TURN_OFF' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+            last_command['statusVal'] == 'REBOOT' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
         return False
     else:
         await ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', CommandType(request.command_number).name, datetime.now()])
@@ -374,259 +359,360 @@ async def unblock_transit(device, request):
         return result
 
 
-@router.get('/api/integration/v1/control')
-async def rem_show():
-    return CommandType.list()
+async def challenged_in(device, request):
+    if device['terType'] == 1:
+        # check barrier statuses
+        check_tasks = []
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierAdvancedStatus']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[0, 'Command']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_device_get', rows=1, values=[0, None, None, None, None]))
+        status, adv_status, gate_status, last_command, network_status, last_server_command, device_server = await asyncio.gather(*check_tasks, return_exceptions=True)
+        # check status and generate event for CMIU
+        if status['statusVal'] == 'OPENED':
+            report_status = CommandStatus(device, 'Barrier', 'ALREADY_OPENED')
+            try:
+                await asyncio.wait_for(ws.amqpconnector.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
+            except:
+                pass
+            return False
+        elif (adv_status['statusVal'] == 'LOCKED' or
+              gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+              network_status['statusVal'] == 'OFFLINE' or
+              last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+            return False
+        else:
+            tasks = []
+            tasks.append(ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open'))
+            tasks.append(ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', 'MANUALLY_OPEN', datetime.now()]))
+            tasks.append(ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[0, 'Command', CommandType(request.command_number).name, datetime.now()]))
+            report_status_barrier = CommandStatus(device, 'Command', 'MANUALLY_OPEN')
+            report_status_server = CommandStatus(device_server, 'Command', CommandType(request.command_number).name)
+            tasks.append(ws.amqpconnector.send(report_status_barrier.instance, persistent=True, keys=['active.barrier', 'command.challenged.in'], priority=10))
+            result, _, _, _ = await asyncio.gather(*tasks)
+            return result
+    else:
+        return False
 
 
-@router.post('/api/integration/v1/control')
-async def rem_exec(*, request: CommandRequest):
+async def challenged_out(device, request):
+    if device['terType'] == 2:
+        # check barrier statuses
+        check_tasks = []
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierStatus']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'BarrierAdvancedStatus']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'General']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Command']))
+        check_tasks.append(ws.dbconnector_is.callproc('is_status_get', rows=1, values=[device['terId'], 'Network']))
+        check_tasks.append(ws.dbconnector_is.callrpoc('is_status_get', rows=1, values=[0, 'Command']))
+        check_tasks.append(ws.dbconnector_is.callrpco('is_device_get', rows=1, values=[9, None, None, None, None]))
+        status, adv_status, gate_status, last_command, network_status, last_server_command, device_server = await asyncio.gather(*check_tasks, return_exceptions=True)
+        # check status and generate event for CMIU
+        if status['statusVal'] == 'OPENED':
+            report_status = CommandStatus(device, 'Barrier', 'ALREADY_OPENED')
+            try:
+                await asyncio.wait_for(ws.amqpconnector.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
+            except:
+                pass
+            return False
+        elif (adv_status['statusVal'] == 'LOCKED' or
+              gate_status['statusVal'] == 'OUT_OF_SERVICE' or
+              network_status['statusVal'] == 'OFFLINE' or
+              last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)
+              and last_server_command['statusVal'] == 'CHALLENGED_IN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+            return False
+        else:
+            tasks = []
+            tasks.append(ws.soapconnector.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open'))
+            tasks.append(ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', 'MANUALLY_OPEN', datetime.now()]))
+            tasks.append(ws.dbconnector_is.callproc('is_status_upd', rows=0, values=[0, 'Command', CommandType(request.command_number).name, datetime.now()]))
+            report_status_barrier = CommandStatus(device, 'Command', 'OPEN')
+            report_status_server = CommandStatus(device_server, 'Command', CommandType(request.command_number).names)
+            tasks.append(ws.amqpconnector.send(report_status_barrier.instance, persistent=True, keys=['active.barrier', 'comamnd.challenged.in'], priority=10))
+            result, _, _, _, _ = await asyncio.gather(*tasks)
+            return result
+    else:
+        return False
+
+
+async def challenged_out_simulate(device, request):
+    pass
+
+
+@router.post('/api/cmiu/v2/control')
+async def ccom_exec(*, request: CommandRequest):
     uid = uuid4()
     tasks = BackgroundTasks()
     response = CommandResponse(**request.dict())
-    device = await ws.dbconnector_is.callproc('is_device_get', rows=1, values=[request.came_device_id, None, None, None, None])
-    if not device is None:
-        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": request.dict(exclude_unset=True)})
+    try:
+        if request.type == "command":
+            device = await ws.dbconnector_is.callproc('is_device_get', rows=1, values=[request.came_device_id, None, None, None, None])
+            print(device)
+            if not device is None:
+                tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": request.dict(exclude_unset=True)})
+                tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                         json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                if request.command_number == 3:
+                    if device['terType'] in [1, 2]:
+                        result = await open_barrier(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+
+                            response.date_event = datetime.now()
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            response.date_event = datetime.now()
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                elif request.command_number == 6:
+                    if device['terType'] in [1, 2]:
+                        result = await close_barrier(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            response.date_event = datetime.now()
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            response.date_event = datetime.now()
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                elif request.command_number == 9:
+                    if device['terType'] in [1, 2]:
+                        result = await lock_barrier(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                elif request.command_number == 12:
+                    if device['terType'] in [1, 2]:
+                        result = await unlock_barrier(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                elif request.command_number == 15:
+                    result = await turnoff_device(device, request)
+                    if result:
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+
+                    else:
+                        response.error = 1
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                elif request.command_number == 18:
+                    result = await turnon_device(device, request)
+                    if result:
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                elif request.command_number == 25:
+                    result = await reboot_device(device, request)
+                    if result:
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+
+                    else:
+                        response.error = 1
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                elif request.command_number == 30:
+                    if device['terType'] in [1, 2]:
+                        result = await lock_barrier_opened(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                elif request.command_number == 31:
+                    if device['terType'] in [1, 2]:
+                        result = await unlock_barrier_opened(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                elif request.command_number == 40:
+                    if device['terType'] in [1, 2]:
+                        result = await block_all_transit(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                elif request.command_number == 41:
+                    if device['terType'] in [1, 2]:
+                        result = await block_casual_transit(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                elif request.command_number == 42:
+                    if device['terType'] in [1, 2]:
+                        result = await unblock_transit(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+
+                elif request.command_number == 81:
+                    pass
+
+                elif request.command_number == 101:
+                    if device['terType'] in [1, 2]:
+                        result = await challenged_in(device, request)
+                        if result:
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+
+    except Exception as e:
+        raise e
+        response.error = 1
+        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
         tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                 json.dumps({'uid': str(uid),  'request': request.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-        try:
-            if request.command_number == 3:
-                if device['terType'] in [1, 2]:
-                    result = await open_barrier(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-
-                        response.date_event = datetime.now()
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        response.date_event = datetime.now()
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-            elif request.command_number == 6:
-                if device['terType'] in [1, 2]:
-                    result = await close_barrier(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        response.date_event = datetime.now()
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        response.date_event = datetime.now()
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-            elif request.command_number == 9:
-                if device['terType'] in [1, 2]:
-                    result = await lock_barrier(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-            elif request.command_number == 12:
-                if device['terType'] in [1, 2]:
-                    result = await unlock_barrier(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-            elif request.command_number == 15:
-                result = await turnoff_device(device, request)
-                if result:
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-
-                else:
-                    response.error = 1
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-            elif request.command_number == 18:
-                result = await turnon_device(device, request)
-                if result:
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-            elif request.command_number == 25:
-                result = await reboot_device(device, request)
-                if result:
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-
-                else:
-                    response.error = 1
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-            elif request.command_number == 30:
-                if device['terType'] in [1, 2]:
-                    result = await lock_barrier_opened(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-            elif request.command_number == 31:
-                if device['terType'] in [1, 2]:
-                    result = await unlock_barrier_opened(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-            elif request.command_number == 40:
-                if device['terType'] in [1, 2]:
-                    result = await block_all_transit(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-            elif request.command_number == 41:
-                if device['terType'] in [1, 2]:
-                    result = await block_casual_transit(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-            elif request.command_number == 42:
-                if device['terType'] in [1, 2]:
-                    result = await unblock_transit(device, request)
-                    if result:
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
-                    else:
-                        response.error = 1
-                        tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                        tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
-                else:
-                    response.error = 1
-                    response.date_event = datetime.now()
-                    tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
-                    tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                             json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-
-            elif request.command_number == 81:
-                pass
-
-        except Exception as e:
-            response.error = 1
-            tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
-            tasks.add_task(ws.dbconnector_is.callproc, 'is_log_ins', rows=0, values=[name, 'info',
-                                                                                     json.dumps({'uid': str(uid), 'response': repr(e)}, ensure_ascii=False, default=str), datetime.now()])
-            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                                                                                 json.dumps({'uid': str(uid), 'response': repr(e)}, ensure_ascii=False, default=str), datetime.now()])
+        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)

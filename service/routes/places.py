@@ -32,7 +32,7 @@ class PlacesResponse(BaseModel):
     error: int = 0
 
 
-@router.get('/api/integration/v1/monitoring/places')
+@router.get('/api/integration/v1/places')
 async def get_places():
     tasks = BackgroundTasks()
     try:
@@ -43,7 +43,7 @@ async def get_places():
         return Response(json.dumps({'error': 'BAD REQUEST', 'comment': 'Not found'}), status_code=400, media_type='application/json', background=tasks)
 
 
-@router.post('/api/integration/v1/monitoring/places', response_model=PlacesResponse)
+@router.post('/api/integration/v1/places', response_model=PlacesResponse)
 async def upd_places(*, places: PlacesRequest):
     tasks = BackgroundTasks()
     uid = uuid4()

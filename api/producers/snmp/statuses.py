@@ -21,8 +21,8 @@ class Barrier(Enum):
 
 
 class Coinbox(Enum):
-    CASHBOX_REMOVED = 0
-    CASHBOX_PRESENTED = 1
+    REMOVED = 0
+    PRESENTED = 1
     NO_RESPONSE = -1
 
 

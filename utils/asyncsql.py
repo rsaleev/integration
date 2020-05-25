@@ -14,7 +14,7 @@ class AsyncDBPool():
     async def connect(self):
         while self.pool is None:
             try:
-                self.pool = await aiomysql.create_pool(**self.conn, loop=asyncio.get_running_loop(), autocommit=True, pool_recycle=0)
+                self.pool = await aiomysql.create_pool(**self.conn, loop=asyncio.get_running_loop(), autocommit=True, connect_timeout=2)
                 self.connected = True
                 return self
             except aiomysql.OperationalError as e:
@@ -22,6 +22,8 @@ class AsyncDBPool():
                 if code == 2003 or 1053:
                     await asyncio.sleep(0.2)
                     continue
+                else:
+                    raise e
             except (asyncio.TimeoutError, TimeoutError):
                 await asyncio.sleep(0.2)
                 continue
@@ -33,18 +35,26 @@ class AsyncDBPool():
 
     async def callproc(self, procedure: str,  rows: int, values: list = None):
         if self.connected:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor(aiomysql.DictCursor) as cur:
-                    result = None
-                    await cur.callproc(procedure, [*values])
-                    if rows == 1:
-                        result = await cur.fetchone()
-                    if rows > 1:
-                        result = await cur.fetchmany(rows)
-                    elif rows == -1:
-                        data = await cur.fetchall()
-                        if len(data) > 0:
-                            result = data
-                    elif rows == 0:
-                        pass
-                    return result
+            try:
+                async with self.pool.acquire() as conn:
+                    async with conn.cursor(aiomysql.DictCursor) as cur:
+                        result = None
+                        await cur.callproc(procedure, [*values])
+                        if rows == 1:
+                            result = await cur.fetchone()
+                        if rows > 1:
+                            result = await cur.fetchmany(rows)
+                        elif rows == -1:
+                            data = await cur.fetchall()
+                            if len(data) > 0:
+                                result = data
+                        elif rows == 0:
+                            pass
+                        return result
+            except OperationalError as e:
+                code, _ = e.args
+                if code in [2003, 2013]:
+                    self.connected = False
+                    pass
+                else:
+                    raise e

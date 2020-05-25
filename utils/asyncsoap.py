@@ -66,24 +66,24 @@ class AsyncSOAP:
         await self.__transport.session.close()
 
     async def execute(self, operation: str, header: bool = None, device: int = None, ** kwargs):
-        operation = self.__client.service._operations[f'{operation}']
-        msg_header = dict
-        if header:
-            msg_header = {'hIdMessage': int(datetime.now().timestamp()),
-                          'hUser': self.__login,
-                          'hPassw': self.__password,
-                          'hDateTime': datetime.now().strftime("%Y%m%d%H%M%S"),
-                          'hIdSite': cfg.object_id,
-                          'hDevice': 0,
-                          'hUserId': 0,
-                          'hLanguage': 'ru'}
-        if device:
-            msg_header['hDevice'] = device
-            res = await operation(sHeader=msg_header, **kwargs)
-            return res
+        if self.connected:
+            operation = self.__client.service._operations[f'{operation}']
+            msg_header = dict
+            if header:
+                msg_header = {'hIdMessage': int(datetime.now().timestamp()),
+                              'hUser': self.__login,
+                              'hPassw': self.__password,
+                              'hDateTime': datetime.now().strftime("%Y%m%d%H%M%S"),
+                              'hIdSite': cfg.object_id,
+                              'hDevice': 0,
+                              'hUserId': 0,
+                              'hLanguage': 'ru'}
+            if device:
+                msg_header['hDevice'] = device
+                res = await operation(sHeader=msg_header, **kwargs)
+                return res
+            else:
+                res = await operation(**kwargs)
+                return res
         else:
-            res = await operation(**kwargs)
-            return res
-
-    def services(self):
-        print(self.__wsdl)
+            self.connect()

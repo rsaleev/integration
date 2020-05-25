@@ -81,16 +81,17 @@ class AsyncSNMPReceiver:
                     elif snmp_object.codename == 'PaymentType':
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.type'], priority=10)
                     elif snmp_object.codename == 'PaymentAmount':
-                        # add transaction uid
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.amount'], priority=10)
                     elif snmp_object.codename == 'PaymentCardType':
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.cardtype'], priority=10)
                     elif snmp_object.codename == 'PaymentStatus':
-                        if snmp_object.value == 'ZONE_PAYMENT':
+                        if snmp_object.snmpvalue == 'ZONE_PAYMENT':
                             snmp_object.tra_uid = uuid4()
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment', 'active.payment'], priority=10)
-                        else:
-                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment', 'passive.payment'], priority=10)
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.proceeding', 'active.payment'], priority=10)
+                        elif snmp_object.snmpvalue == 'FINISHED_WITH_SUCCESS' or snmp_object.snmpvalue == 'FINISHED_WITH_ISSUES':
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.finished', 'passive.payment'], priority=10)
+                        elif snmp_object.snmpvalue == 'PAYMENT_CANCELLED':
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.cancelled', 'passive.payment'], priority=10)
                     elif snmp_object.codename == 'BarrierLoop2Status':
                         # add uid
                         if snmp_object.device_type == 1:

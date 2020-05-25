@@ -44,19 +44,14 @@ class AsyncAMQP:
                 continue
 
     async def disconnect(self):
-        # await self.__q.unbind()
-        # await self.__ch.close()
         await self.__cnx.close()
 
     async def bind(self, queue_name: str, bindings: list, durable: bool):
-        # try:
-        self.__q = await self.__ch.declare_queue(name=queue_name, arguments={'x-max-priority': 10}, auto_delete=False if durable else True, durable=durable)
-        for b in bindings:
-            await self.__q.bind(self.__ex, routing_key=b)
-        return self
-        # except (ConnectionError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, RuntimeError):
-        #     raise
-        #     await self.connect()
+        if self.connected:
+            self.__q = await self.__ch.declare_queue(name=queue_name, arguments={'x-max-priority': 10}, auto_delete=False if durable else True, durable=durable)
+            for b in bindings:
+                await self.__q.bind(self.__ex, routing_key=b)
+            return self
 
     async def send(self, data: dict, persistent: bool, keys: list, priority: int):
         for k in keys:
