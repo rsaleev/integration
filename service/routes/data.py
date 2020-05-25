@@ -16,7 +16,7 @@ router = APIRouter()
 name = 'webservice_report'
 
 
-@router.get('/api/integration/v1/report/{tbl}')
+@router.get('/api/integration/v1/monitoring/{tbl}')
 async def get_view(tbl: str):
     tasks = BackgroundTasks()
     try:
@@ -32,8 +32,8 @@ async def get_view(tbl: str):
 
 
 @router.get('/api/integration/v1/report/grz')
-async def get_grz(interval: int = None):
-    data = await ws.dbconnector_is.callproc('rep_plates_get', rows=-1, values=[interval])
+async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
+    data = await ws.dbconnector_is.callproc('rep_plates_get', rows=-1, values=[ter_id, from_dt, to_dt])
     data_out = ([{"terAddress": key, "terDescription": next(d1['terDescription'] for d1 in data if d1['terAddress'] == key),
                   "camMode":next(d2['camMode'] for d2 in data if d2['terAddress'] == key),
                   "camPlateData": [({'date': g['checkDate'],
