@@ -1,8 +1,6 @@
 aiosnmp==0.2.2
-starlette==0.12.9
-opencv_python_headless==4.2.0.34
+starlette==0.13.4
 urllib3==1.22
-nest_asyncio==1.2.1
 pydantic==1.2
 uvicorn==0.8.6
 aiologger==0.4.0
