@@ -85,10 +85,10 @@ class PlacesListener:
         tasks = []
         for p in places:
             tasks.append(self.__dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'],  p['areTotalPark'], p['areFreePark'], p['areType']]))
-            if p['areId'] == cfg.main_area and p['areFreePark'] == 0:
+            if p['areId'] == cfg.MAIN_AREA and p['areFreePark'] == 0:
                 warning = self.PlacesWarning('FULL')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=10))
-            elif p['areId'] == cfg.main_area and p['areFreePark'] > 0:
+            elif p['areId'] == cfg.MAIN_AREA and p['areFreePark'] > 0:
                 warning = self.PlacesWarning('VACANT')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
         await asyncio.gather(*tasks)

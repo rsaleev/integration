@@ -18,8 +18,8 @@ parser.read(CONFIGURATION)
 
 server_ip = parser.get("WISEPARK", "server_ip")
 object_id = parser.get("WISEPARK", "site_id")
+MAIN_AREA = 1
 
-#main_area = parser.getint("WISEPARK", "main_area")
 ### WISEPARK SOAP SERVICE ###
 
 
