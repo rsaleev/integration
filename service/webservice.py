@@ -67,7 +67,9 @@ app = FastAPI(title="Remote management Module",
               docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(control.router, dependencies=[Depends(get_api_key)])
-app.include_router(data.router, dependencies=[Depends(get_api_key)])
+#app.include_router(data.router, dependencies=[Depends(get_api_key)])
+app.include_router(data.router)
+
 app.include_router(logs.router, dependencies=[Depends(get_api_key)])
 app.include_router(places.router, dependencies=[Depends(get_api_key)])
 app.include_router(services.router, dependencies=[Depends(get_api_key)])

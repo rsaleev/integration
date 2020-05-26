@@ -121,6 +121,8 @@ class SNMPObject:
                 return self.__snmpvalue/10
             elif self.codename == "24ABoard":
                 return self.__snmpvalue/100
+            elif self.codename in ['IOBoard1.Temperature', 'IOBoard1.Temperature']:
+                return self.__snmpvalue
 
     @property
     def ts(self):

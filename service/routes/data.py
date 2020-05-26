@@ -9,6 +9,7 @@ import service.settings as ws
 import asyncio
 from datetime import date, datetime, timedelta
 from itertools import groupby
+from operator import itemgetter
 
 
 router = APIRouter()
@@ -34,7 +35,8 @@ async def get_view(tbl: str):
 @router.get('/api/integration/v1/report/grz')
 async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
     data = await ws.dbconnector_is.callproc('rep_plates_get', rows=-1, values=[ter_id, from_dt, to_dt])
-    data_out = ([{"terAddress": key, "terDescription": next(d1['terDescription'] for d1 in data if d1['terAddress'] == key),
+    data_out = ([{"terAddress": key, "terType": next(d1['terType'] for d1 in data if d1['terAddress'] == key),
+                  "terDescription": next(d1['terDescription'] for d1 in data if d1['terAddress'] == key),
                   "camMode":next(d2['camMode'] for d2 in data if d2['terAddress'] == key),
                   "camPlateData": [({'date': g['repDate'],
                                      'totalTransits':g['totalTransits'],
@@ -43,4 +45,5 @@ async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
                                      'noSymbols':g['noSymbols'],
                                      'accuracy':g['accuracy']}) for g in group]}
                  for key, group in groupby(data, key=lambda x: x['terAddress'])])
-    return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
+    data_out_sorted = sorted(data_out, key=lambda x: x['terType'])
+    return Response(json.dumps(data_out_sorted, default=str), status_code=200, media_type='application/json')

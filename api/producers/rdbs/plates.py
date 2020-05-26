@@ -42,12 +42,14 @@ class PlatesDataMiner:
         return self.__eventsignal
 
     async def _initialize(self):
-        self.__dbconnector_wp = await AsyncDBPool(conn=cfg.wp_cnx).connect()
-        self.__dbconnector_is = await AsyncDBPool(conn=cfg.is_cnx).connect()
+        connection_tasks = []
+        connection_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
+        connection_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
+        self.__dbconnector_wp, self.__dbconnector_is = await asyncio.gather(*connection_tasks)
         columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
         date_today = date.today()
         first_day = date_today.replace(day=1)
-        days_interval = date_today - first_day
+        days_interval = date_today-first_day
         dates = [first_day + timedelta(days=x) for x in range(0, days_interval.days)]
         for c in columns:
             for d in dates:
@@ -62,12 +64,12 @@ class PlatesDataMiner:
             if data_out['totalTransits'] > 0:
                 data_out['accuracy'] = int(round(data_out['more6symbols']/data_out['totalTransits']*100, 2))
         await self.__dbconnector_is.callproc('rep_plates_ins', rows=0,
-                                             values=[device['terAddress'], device['terDescription'], data_out['totalTransits'], data_out['more6symbols'], data_out['less6symbols'],
+                                             values=[device['terAddress'], device['terType'], device['terDescription'], data_out['totalTransits'], data_out['more6symbols'], data_out['less6symbols'],
                                                      data_out['noSymbols'], data_out['accuracy'], device['camPlateMode'], data_out['date']])
 
     async def _dispatch(self):
         while not self.eventsignal:
-            if 3 <= datetime.now().hour < 4:
+            if 0 <= datetime.now().hour < 1:
                 last_rep = await self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[])
                 tasks = []
                 columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
