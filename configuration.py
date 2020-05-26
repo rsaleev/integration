@@ -19,13 +19,13 @@ parser.read(CONFIGURATION)
 server_ip = parser.get("WISEPARK", "server_ip")
 object_id = parser.get("WISEPARK", "site_id")
 
-main_area = parser.getint("WISEPARK", "main_area")
+#main_area = parser.getint("WISEPARK", "main_area")
 ### WISEPARK SOAP SERVICE ###
 
 
-object_latitude = parser.getfloat("AMPP", "parking_latitude")
-object_longitude = parser.getfloat("AMPP", "parking_longitude")
-object_address = parser.get("AMPP", "parking_address")
+# object_latitude = parser.getfloat("AMPP", "parking_latitude")
+# object_longitude = parser.getfloat("AMPP", "parking_longitude")
+#object_address = parser.get("AMPP", "parking_address")
 
 
 soap_user = parser.get("WISEPARK", "soap_username")
