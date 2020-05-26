@@ -37,7 +37,8 @@ class Application:
         self.alias = 'integration'
 
     async def _initialize_info(self) -> None:
-        await self.__dbconnector_is.callproc('is_info_ins', rows=0, values=[cfg.object_id, cfg.ampp_parking_id, cfg.object_latitude, cfg.object_longitude, cfg.object_address])
+        # await self.__dbconnector_is.callproc('is_info_ins', rows=0, values=[cfg.object_id, cfg.ampp_parking_id, cfg.object_latitude, cfg.object_longitude, cfg.object_address])
+        pass
 
     async def _initialize_server(self) -> None:
         ampp_id_mask = cfg.ampp_parking_id * 100
