@@ -35,7 +35,7 @@ async def get_view(tbl: str):
 @router.get('/api/integration/v1/report/grz')
 async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
     data = await ws.dbconnector_is.callproc('rep_plates_get', rows=-1, values=[ter_id, from_dt, to_dt])
-    data = sorted(data, lambda x: x['terType'])
+    data = sorted(data, key=lambda x: x['terType'])
     print(data)
     data_out = ([{"terAddress": key,
                   "terDescription": next(d1['terDescription'] for d1 in data if d1['terAddress'] == key),
