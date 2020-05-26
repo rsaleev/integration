@@ -51,7 +51,7 @@ wp_cnx = {"user": parser.get("WISEPARK", "rdbs_user"),
 rdbs_polling_interval = parser.getint("WISEPARK", "rdbs_poller_interval")
 
 ### AMPP ###
-ampp_parking_id = parser.getint("CMIU", "parking_id")
+ampp_parking_id = parser.getint("AMPP", "parking_id")
 
 ### METRO ###
 converter_url = parser.get("METRO", "info_url")
