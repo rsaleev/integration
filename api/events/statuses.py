@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
-import configuration as cfg
+import configuration.settings as cs
 import json
 import functools
 import os
@@ -48,11 +48,11 @@ class StatusListener:
         return self.__eventsignal
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({"module": self.name, "info": "Starting..."})
         connections_tasks = []
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
-        connections_tasks.append(AsyncDBPool(cfg.is_cnx).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('statuses', ['status.*', 'command.*.*'], durable=True)
         await self.__logger.info({"module": self.name, "info": "Started"})

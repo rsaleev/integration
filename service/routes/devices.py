@@ -83,7 +83,7 @@ def check_payonline_ip(cls, v):
 
 @router.get('/api/integration/v1/devices')
 async def get_devices():
-    data = await ws.dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
+    data = await ws.DBCONNECTOR_IS.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
     return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
 
 
@@ -91,8 +91,8 @@ async def get_devices():
 async def get_configuration(ter_id):
     try:
         tasks = []
-        tasks.append(ws.dbconnector_is.callproc('is_column_get', rows=1, values=[ter_id]))
-        tasks.append(ws.dbconnector_is.callproc('is_cashier_get', rows=1, values=[ter_id]))
+        tasks.append(ws.DBCONNECTOR_IS.callproc('is_column_get', rows=1, values=[ter_id]))
+        tasks.append(ws.DBCONNECTOR_IS.callproc('is_cashier_get', rows=1, values=[ter_id]))
         column, cashier = await asyncio.gather(*tasks)
         if not column is None and cashier is None:
             return Response(json.dumps(column, default=str), status_code=200, media_type='application/json')
@@ -108,7 +108,7 @@ async def get_configuration(ter_id):
 
 @router.get('/api/integration/v1/device/{ter_id}/statuses')
 async def get_statuses(ter_id):
-    data = await ws.dbconnector_is.callproc('is_status_get', rows=-1, values=[ter_id, None])
+    data = await ws.DBCONNECTOR_IS.callproc('is_status_get', rows=-1, values=[ter_id, None])
     if not data is None:
         return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
     else:
@@ -120,16 +120,16 @@ async def get_statuses(ter_id):
 async def modify_device_config(ter_id, params: DeviceRequestConfig):
     try:
         tasks = []
-        tasks.append(ws.dbconnector_is.callproc('is_column_get', rows=1, values=[ter_id]))
-        tasks.append(ws.dbconnector_is.callproc('is_cashier_get', rows=1, values=[ter_id]))
+        tasks.append(ws.DBCONNECTOR_IS.callproc('is_column_get', rows=1, values=[ter_id]))
+        tasks.append(ws.DBCONNECTOR_IS.callproc('is_cashier_get', rows=1, values=[ter_id]))
         column, cashier = await asyncio.gather(*tasks)
         if column:
-            await ws.dbconnector_is.callproc('is_column_upd', rows=0, values=[ter_id, params.terminal_address,
+            await ws.DBCONNECTOR_IS.callproc('is_column_upd', rows=0, values=[ter_id, params.terminal_address,
                                                                               params.terminal_area_id, params.terminal_type, params.terminal_description, params.ampp_id, params.ampp_type, params.terminal_ip,
                                                                               params.cam_plate_ip, params.cam_photo_1_ip, params.cam_photo_2_ip, params.imager_ip, params.imager_enabled, params.ticket_device])
             return Response(status_code=204, media_type='application/json')
         elif cashier:
-            await ws.dbconnector_is.callproc('is_cashier_upd', values=[ter_id, params.terminal_address,
+            await ws.DBCONNECTOR_IS.callproc('is_cashier_upd', values=[ter_id, params.terminal_address,
                                                                        params.terminal_area_id, params.terminal_type, params.terminal_description, params.ampp_id, params.ampp_type, params.terminal_ip, params.cashbox_capacity, params.cashbox_limit,
                                                                        params.uniteller_id, params.uniteller_ip, params.payonline_id, params.uniteller_ip, params.imager_ip, params.imager_enabled])
         else:
@@ -143,10 +143,10 @@ async def modify_device_config(ter_id, params: DeviceRequestConfig):
 @router.post('/api/integration/v1/device/{ter_id}/statuses')
 async def modify_device_statuses(ter_id, params: DeviceRequstStatus):
     try:
-        device = await ws.dbconnector_is.callproc('is_device_get', rows=1, values=[ter_id, None, None, None, None])
+        device = await ws.DBCONNECTOR_IS.callproc('is_device_get', rows=1, values=[ter_id, None, None, None, None])
         if device:
             if params.operation == 'add':
-                await ws.dbconnector_is.callproc('is_status_ins', rows=0, values=[ter_id, params.status])
+                await ws.DBCONNECTOR_IS.callproc('is_status_ins', rows=0, values=[ter_id, params.status])
                 return Response(status_code=204, media_type='application/json')
             elif params.operation == 'del':
                 await ws.dbconnусtor_is.callproc('is_status_del', rows=0, values=[ter_id, params.status])

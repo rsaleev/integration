@@ -1,4 +1,4 @@
-import configuration as cfg
+import configuration.settings as cs
 import json
 import asyncio
 import os
@@ -150,11 +150,11 @@ class AsyncPingPoller:
                     'device_ip': self.device_ip}
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
-        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=5, max_size=10).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
@@ -168,7 +168,7 @@ class AsyncPingPoller:
         network_status.ampp_type = device['amppType']
         network_status.ts = datetime.now().timestamp()
         try:
-            await aioping.ping(device['terIp'], timeout=cfg.snmp_timeout)
+            await aioping.ping(device['terIp'], timeout=cs.IS_SNMP_TIMEOUT)
             network_status.value = 'ONLINE'
         except (TimeoutError, asyncio.TimeoutError):
             network_status.value = 'OFFLINE'
@@ -184,7 +184,7 @@ class AsyncPingPoller:
                     tasks.append(self._process(d))
                 await asyncio.gather(*tasks)
                 await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
-                await asyncio.sleep(cfg.rdbs_polling_interval)
+                await asyncio.sleep(cs.IS_RDBS_POLLING_INTERVAL)
             except asyncio.CancelledError:
                 pass
 

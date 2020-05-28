@@ -3,7 +3,7 @@ import asyncio
 import aiosnmp
 from datetime import datetime
 import json
-import configuration as cfg
+import configuration.settings as cs
 from .mibs import receiving_mibs
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP
@@ -36,11 +36,11 @@ class AsyncSNMPReceiver:
         return self.__eventloop
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log_debug)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
-        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=5, max_size=10).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
@@ -128,7 +128,7 @@ class AsyncSNMPReceiver:
     async def _dispatch(self):
         pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
-        trap_listener = aiosnmp.SnmpV2TrapServer(host=cfg.snmp_trap_host, port=cfg.snmp_trap_port, communities=("public",), handler=self._handler)
+        trap_listener = aiosnmp.SnmpV2TrapServer(host=cs.IS_SNMP_RECEIVER_HOST, port=cs.IS_SNMP_RECEIVER_PORT, communities=("public",), handler=self._handler)
         await trap_listener.run()
 
     async def _signal_cleanup(self):

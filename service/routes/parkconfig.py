@@ -1,34 +1,29 @@
 from fastapi.routing import APIRouter
 from starlette.responses import Response, JSONResponse
 from starlette.background import BackgroundTask
-import configuration as cfg
+import configuration.settings as cs
 import json
 import asyncio
-import service.settings as ws
+import integration.service.settings as ws
 import configparser
 
 router = APIRouter()
 
 
 async def initialize_info() -> None:
-    parser = configparser.RawConfigParser()
-    parser.read(cfg.CONFIGURATION)
-    object_latitude = parser.getfloat("AMPP", "parking_latitude")
-    object_longitude = parser.getfloat("AMPP", "parking_longitude")
-    object_address = parser.get("AMPP", "parking_address")
-    await ws.dbconnector_is.callproc('is_info_ins', rows=0, values=[cfg.object_id, cfg.ampp_parking_id, object_latitude, object_longitude, object_address])
+    await ws.dbconnector_is.callproc('is_info_ins', rows=0, values=[cs.WS_SERVER_ID, cs.AMPP_PARKING_ID, cs.AMPP_PARKING_LATITUDE, cs.AMPP_PARKING_LONGITUDE, cs.AMPP_PARKING_ADDRESS])
 
 
 async def initialize_server() -> None:
-    ampp_id_mask = cfg.ampp_parking_id * 100
+    ampp_id_mask = cs.AMPP_PARKING_ID * 100
     service_version = await ws.soapconnector.client.service.GetVersion()
     result = await ws.soapconnector.execute('GetVersion')
-    await ws.dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cfg.server_ip, result['rVersion']])
+    await ws.dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cs.WS_SERVER_IP, result['rVersion']])
 
 
 async def initialize_device(device: dict, mapping: list) -> None:
     device_is = next(d for d in mapping if d['ter_id'] == device['terId'])
-    ampp_id_mask = cfg.ampp_parking_id * 100
+    ampp_id_mask = cs.AMPP_PARKING_ID * 100
     await ws.dbconnector_is.callproc('is_device_ins', rows=0, values=[device['terId'], device['terAddress'], device['terType'], device_is['description'],
                                                                       ampp_id_mask+device_is['ampp_id'], device_is['ampp_type'], device['terIdArea'],
                                                                       device['terIPV4'], device['terVersion']])
@@ -72,7 +67,7 @@ async def initialize_statuses(devices: list, mapping: dict) -> None:
 
 async def initialize():
     devices = await ws.dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
-    f = open(cfg.MAPPING, 'r')
+    f = open(cs.MAPPING, 'r')
     mapping = json.loads(f.read())
     f.close()
     tasks = []

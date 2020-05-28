@@ -1,7 +1,7 @@
 import aiohttp
 import urllib3
 import ssl
-import configuration as cfg
+import configuration.settings as cs
 from urllib.parse import urlencode
 from fastapi.routing import APIRouter
 from starlette.responses import JSONResponse
@@ -64,15 +64,15 @@ class Card(BaseModel):
 @router.get('/api/integration/v1/converters/troika/num/{num}')
 async def troika_num(num):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
-                                            capath=cfg.METRO)
+                                            capath=cs.METRO_CERT_PATH)
     sslcontext.load_cert_chain(
-        certfile=cfg.METRO+'/ampp.crt',
-        keyfile=cfg.metro_cert+'/ampp.key')
+        certfile=f'{cs.METRO_CERT_PATH}/ampp.crt',
+        keyfile=f'{cs.METRO_CERT_PATH}/ampp.key')
     conn = aiohttp.TCPConnector(ssl_context=sslcontext)
     async with aiohttp.ClientSession(connector=conn) as session:
         try:
-            async with session.get(url=cfg.converter_url+f'/get_card_by_num?num={num}', headers={"accept": "application/json"},
-                                   timeout=cfg.metro_timeout, ssl=sslcontext) as r:
+            async with session.get(url=f'{cs.METRO_INFO_URL}/get_card_by_num?num={num}', headers={"accept": "application/json"},
+                                   timeout=cs.METRO_REQUEST_TIMEOUT, ssl=sslcontext) as r:
                 if r.status == 200:
                     response = await r.json()
                     data = Card(**response)
@@ -95,15 +95,15 @@ async def troika_num(num):
 @router.get('/api/integration/v1/converters/troika/uid/{uid}')
 async def troika_uid(uid):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
-                                            capath=cfg.METRO)
+                                            capath=cs.METRO_CERT_PATH)
     sslcontext.load_cert_chain(
-        certfile=cfg.METRO+'/ampp.crt',
-        keyfile=cfg.METRO+'/ampp.key')
+        certfile=f'{cs.METRO_CERT_PATHL}/ampp.crt',
+        keyfile=f'{cs.METRO_CERT_PATH}/ampp.key')
     conn = aiohttp.TCPConnector(ssl_context=sslcontext)
     async with aiohttp.ClientSession(connector=conn) as session:
         try:
-            async with session.get(url=cfg.converter_url+f'/get_card_by_uid?uid={uid}', headers={"accept": "application/json"},
-                                   timeout=cfg.metro_timeout, ssl=sslcontext) as r:
+            async with session.get(url=f'{cs.METRO_INFO_URL}/get_card_by_uid?uid={uid}', headers={"accept": "application/json"},
+                                   timeout=cs.METRO_REQUEST_TIMEOUT, ssl=sslcontext) as r:
                 if r.status == 200:
                     response = await r.json()
                     data = Card(**response)

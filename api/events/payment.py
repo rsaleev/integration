@@ -6,7 +6,7 @@ from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 import json
-import configuration as cfg
+import configuration.settings as cs
 import os
 import functools
 
@@ -72,12 +72,12 @@ class PaymentListener:
 
     # primary initialization of logging and connections
     async def _initialize(self) -> None:
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
-        connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+        connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('payment_signals', ['status.payment.*'], durable=True)
         cashiers = await self.__dbconnector_is.callproc('is_cashier_get', rows=-1, values=[None])

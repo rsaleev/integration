@@ -1,18 +1,15 @@
-import configuration as cfg
+import configuration.settings as cs
 from utils.asyncamqp import AsyncAMQP
 from utils.asynclog import AsyncLogger
 from utils.asyncsoap import AsyncSOAP
 from utils.asyncsql import AsyncDBPool
 
 
-dbconnector_wp = AsyncDBPool(cfg.wp_cnx)
-dbconnector_is = AsyncDBPool(cfg.is_cnx)
-soapconnector = AsyncSOAP(cfg.soap_user, cfg.soap_password, cfg.object_id, cfg.soap_timeout, cfg.soap_url)
-amqpconnector = AsyncAMQP(cfg.amqp_user, cfg.amqp_password, cfg.amqp_host, 'integration', 'topic')
-logger = AsyncLogger()
-devices = []
-gates = [d for d in devices if d['terType'] in [1, 2]]
-autocashiers = [d for d in devices if d['terType'] == 3]
+DBCONNECTOR_WS = AsyncDBPool(cs.WS_SQL_CNX)
+DBCONNECTOR_IS = AsyncDBPool(cs.IS_SQL_CNX)
+SOAPCONNECTOR = AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL)
+AMQPCONNECTOR = AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, 'integration', 'topic')
+LOGGER = AsyncLogger()
 
 
 # data producers

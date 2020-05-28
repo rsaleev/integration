@@ -21,10 +21,10 @@ name = 'webservice_report'
 async def get_view(tbl: str):
     tasks = BackgroundTasks()
     try:
-        data = await ws.dbconnector_wp.callproc('wp_table_get', rows=-1, values=[tbl])
+        data = await ws.DBCONNECTOR_WS.callproc('wp_table_get', rows=-1, values=[tbl])
         return Response(json.dumps({'pageData': data}, default=str, ensure_ascii=False), status_code=200, media_type='application/json')
     except (OperationalError, ProgrammingError) as e:
-        tasks.add_task(ws.logger.info, {'module': name, 'path': f"rest/monitoring/data/{tbl}", 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.info, {'module': name, 'path': f"rest/monitoring/data/{tbl}", 'error': repr(e)})
         code, description = e.args
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
@@ -34,7 +34,7 @@ async def get_view(tbl: str):
 
 @router.get('/api/integration/v1/report/grz')
 async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
-    data = await ws.dbconnector_is.callproc('rep_plates_get', rows=-1, values=[ter_id, from_dt, to_dt])
+    data = await ws.DBCONNECTOR_IS.callproc('rep_plates_get', rows=-1, values=[ter_id, from_dt, to_dt])
     data = sorted(data, key=lambda x: x['terType'])
     data_out = ([{"terAddress": key,
                   "terDescription": next(d1['terDescription'] for d1 in data if d1['terAddress'] == key),

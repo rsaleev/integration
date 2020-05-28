@@ -1,16 +1,14 @@
 from fastapi.routing import APIRouter
-import configuration as cfg
 from starlette.responses import Response, JSONResponse
 from pydantic import BaseModel, validator, ValidationError
 import json
-import re
 import dateutil.parser as dp
 from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingError, InternalError
 from pystemd.systemd1 import Unit
 from pystemd.exceptions import PystemdRunError
 from pystemd.dbusexc import DBusFileNotFoundError, DBusFileNotFoundError, DBusAccessDeniedError, DBusFailedError, DBusFileNotFoundError
 from starlette.background import BackgroundTasks
-from service import settings as ws
+import integration.service as ws
 from pystemd.exceptions import PystemdRunError
 import asyncio
 from typing import Optional
@@ -33,9 +31,9 @@ class ServiceConfigRequest(BaseModel):
 @router.get('/rest/monitoring/services')
 async def get_services():
     try:
-        services = await ws.dbconnector_is.callproc('is_services_get', rows=-1, values=[None, None, None, None, None, None, None, None])
+        services = await ws.DBCONNECTOR_IS.callproc('is_services_get', rows=-1, values=[None, None, None, None, None, None, None, None])
         for s in services:
-            s['processes'] = await ws.dbconnector_is.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None])
+            s['processes'] = await ws.DBCONNECTOR_IS.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None])
         return Response(json.dumps(services, default=str), status_code=200, media_type='application/json')
     except Exception as e:
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
@@ -44,8 +42,8 @@ async def get_services():
 @router.get('/rest/monitoring/services/{service_name}')
 async def get_service(service_name):
     try:
-        service = await ws.dbconnector_is.callproc('is_services_get', rows=1, values=[service_name, None])
-        processes = await ws.dbconnector_is.callproc(f"{service_name}_processes_get", rows=-1, values=[None, None, None, None, None])
+        service = await ws.DBCONNECTOR_IS.callproc('is_services_get', rows=1, values=[service_name, None])
+        processes = await ws.DBCONNECTOR_IS.callproc(f"{service_name}_processes_get", rows=-1, values=[None, None, None, None, None])
         service['serviceProcesses'] = processes
         return Response(json.dumps(service), status_code=200, media_type='application/json')
     except Exception as e:
@@ -74,6 +72,3 @@ async def control_services(service_name, operation):
             return Response(json.dumps({'error': 'BAD_REQUEST'}), status_code=403, media_type='application/json')
     except DBusFileNotFoundError:
         return Response(json.dumps({'error': 'BAD_REQUEST'}), status_code=403, media_type='application/json')
-
-
-

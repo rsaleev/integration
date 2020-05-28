@@ -1,6 +1,6 @@
 from fastapi.routing import APIRouter
 import configuration as cfg
-from service import settings as ws
+import integration.service.settings as ws
 from starlette.responses import Response
 from starlette.background import BackgroundTasks
 from pydantic import BaseModel, validator, ValidationError
@@ -62,10 +62,10 @@ def converter(code):
 async def get_subscriptions():
     tasks = BackgroundTasks()
     try:
-        data = await ws.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, None, None, None])
+        data = await ws.DBCONNECTOR_WS.callproc('sub_get', rows=-1, values=[None, None, None, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'path': 'rest/monitoring/subscription', 'error': repr(e)})
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
@@ -73,10 +73,10 @@ async def get_subscriptions():
 async def get_subscription_by_plate(value):
     tasks = BackgroundTasks()
     try:
-        data = await ws.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, value, None, None])
+        data = await ws.DBCONNECTOR_WS.callproc('sub_get', rows=-1, values=[None, value, None, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription/plate', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'path': 'rest/monitoring/subscription/plate', 'error': repr(e)})
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
@@ -84,10 +84,10 @@ async def get_subscription_by_plate(value):
 async def get_subscription_by_name(value):
     tasks = BackgroundTasks()
     try:
-        data = await ws.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, value, None, None])
+        data = await ws.DBCONNECTOR_WS.callproc('sub_get', rows=-1, values=[None, value, None, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription/name', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'path': 'rest/monitoring/subscription/name', 'error': repr(e)})
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 
@@ -95,10 +95,10 @@ async def get_subscription_by_name(value):
 async def get_subscription_by_cardcode(value):
     tasks = BackgroundTasks()
     try:
-        data = await ws.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, None, value, None])
+        data = await ws.DBCONNECTOR_WS.callproc('sub_get', rows=-1, values=[None, None, value, None])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except Exception as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/subscription/cardcode', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'path': 'rest/monitoring/subscription/cardcode', 'error': repr(e)})
         return Response(json.dumsp({'error': 'INTERNAL_ERROR'}), default=str, media_type='application/json', status_code=500, background=tasks)
 
 #
@@ -106,13 +106,13 @@ async def get_subscription_by_cardcode(value):
 async def get_subscription_by_cardid(value):
     tasks = BackgroundTasks()
     try:
-        data = await ws.dbconnector_wp.callproc('sub_get', rows=-1, values=[None, None, None, data])
+        data = await ws.DBCONNECTOR_WS.callproc('sub_get', rows=-1, values=[None, None, None, data])
         return Response(json.dumps(data), default=str, media_type='application/json', status_code=200)
     except (OperationalError, ProgrammingError) as e:
         code, description = e.args
         tasks = BackgroundTasks()
-        tasks.add_task(ws.logger.error, {'module': name, 'path': f'rest/monitoring/subscription/cardid/{value}', 'error': repr(e)})
-        tasks.add_task(ws.logger.error, {'module': 'webservice', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'path': f'rest/monitoring/subscription/cardid/{value}', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': 'webservice', 'error': repr(e)})
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
         elif code == 1305:
@@ -125,12 +125,12 @@ async def get_subscription_by_cardid(value):
 @router.put('/api/monitoring/subscription')
 async def add_subcription(subscription: Subscription):
     try:
-        await ws.dbconnector_wp.callproc('sub_ins', rows=0, values=[subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
+        await ws.DBCONNECTOR_WS.callproc('sub_ins', rows=0, values=[subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
                                                                     subscription.sub_name, subscription.sub_email, subscription.sub_phone])
         return Response(status_code=200)
     except(OperationalError, ProgrammingError) as e:
         tasks = BackgroundTasks()
-        tasks.add_task(ws.logger.error, {'module': 'webservice', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': 'webservice', 'error': repr(e)})
         code, description = e.args
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
@@ -142,13 +142,13 @@ async def add_subcription(subscription: Subscription):
 @router.post('/api/monitoring/subscription/{subid}')
 async def add_subcription(subid, subscription: Subscription):
     try:
-        await ws.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
+        await ws.DBCONNECTOR_WS.callproc('sub_upd', rows=0, values=[subid, subscription.card_uid, subscription.car_plate, subscription.invalid_pass, subscription.sub_from, subscription.sub_to, subscription.card_num,
                                                                     subscription.sub_name, subscription.sub_email, subscription.sub_phone])
         return Response(status_code=200)
     except(OperationalError, ProgrammingError) as e:
         code, description = e.args
         tasks = BackgroundTasks()
-        tasks.add_task(ws.logger.error, {'module': 'webservice', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': 'webservice', 'error': repr(e)})
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
         elif code == 1305:
@@ -158,13 +158,13 @@ async def add_subcription(subid, subscription: Subscription):
 @router.delete('/api/monitoring/subscription/{subid}')
 async def del_subscription(subid):
     try:
-        await ws.dbconnector_wp.callproc('sub_upd', rows=0, values=[subid, None, 'rezerved', 'rezerved', None, None, 'rezerved',
+        await ws.DBCONNECTOR_WS.callproc('sub_upd', rows=0, values=[subid, None, 'rezerved', 'rezerved', None, None, 'rezerved',
                                                                     'rezerved', 'rezerved', 'rezerved'])
         return Response(status_code=200)
     except(OperationalError, ProgrammingError) as e:
         code, description = e.args
         tasks = BackgroundTasks()
-        tasks.add_task(ws.logger.error, {'module': 'webservice', 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': 'webservice', 'error': repr(e)})
         if code == 1146:
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json', background=tasks)
         elif code == 1305:

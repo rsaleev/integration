@@ -9,18 +9,18 @@ from multiprocessing import Process
 from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncsoap import AsyncSOAP
-import configuration as cfg
-from api.producers.snmp.poller import AsyncSNMPPoller
-from api.producers.snmp.receiver import AsyncSNMPReceiver
-from api.producers.icmp.poller import AsyncPingPoller
-from api.events.statuses import StatusListener
-from api.events.entry import EntryListener
-from api.events.exit import ExitListener
-from api.events.places import PlacesListener
-from api.events.payment import PaymentListener
+import configuration.settings as cs
+from integration.api.producers.snmp.poller import AsyncSNMPPoller
+from integration.api.producers.snmp.receiver import AsyncSNMPReceiver
+from integration.api.producers.icmp.poller import AsyncPingPoller
+from integration.api.events.statuses import StatusListener
+from integration.api.events.entry import EntryListener
+from integration.api.events.exit import ExitListener
+from integration.api.events.places import PlacesListener
+from integration.api.events.payment import PaymentListener
 from utils.asynclog import AsyncLogger
-from service import webservice
-from api.producers.rdbs.plates import PlatesDataMiner
+from integration.service import webservice
+from integration.api.producers.rdbs.plates import PlatesDataMiner
 import sys
 
 
@@ -41,14 +41,14 @@ class Application:
         pass
 
     async def _initialize_server(self) -> None:
-        ampp_id_mask = cfg.ampp_parking_id * 100
+        ampp_id_mask = int(cs.AMPP_PARKING_ID) * 100
         service_version = await self.__soapconnector.client.service.GetVersion()
         await self.__soapconnector.execute('GetVersion')
-        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cfg.server_ip, service_version['rVersion']])
+        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cs.WS_SERVER_IP, service_version['rVersion']])
 
     async def _initialize_device(self, device: dict, mapping: list) -> None:
         device_is = next(d for d in mapping if d['ter_id'] == device['terId'])
-        ampp_id_mask = cfg.ampp_parking_id * 100
+        ampp_id_mask = int(cs.AMPP_PARKING_ID) * 100
         await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[device['terId'], device['terAddress'], device['terType'], device_is['description'],
                                                                               ampp_id_mask+device_is['ampp_id'], device_is['ampp_type'], device['terIdArea'],
                                                                               device['terIPV4'], device['terVersion']])
@@ -90,15 +90,15 @@ class Application:
 
     async def _initialize(self):
         try:
-            self.__logger = await AsyncLogger().getlogger(cfg.log)
+            self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
             await self.__logger.info('Starting...')
             connections_tasks = []
-            connections_tasks.append(AsyncDBPool(cfg.wp_cnx).connect())
-            connections_tasks.append(AsyncDBPool(cfg.is_cnx).connect())
-            connections_tasks.append(AsyncSOAP(cfg.soap_user, cfg.soap_password, cfg.object_id, cfg.soap_timeout, cfg.soap_url).connect())
+            connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+            connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+            connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
             self.__dbconnector_wp, self.__dbconnector_is, self.__soapconnector = await asyncio.gather(*connections_tasks)
             devices = await self.__dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
-            f = open(cfg.MAPPING, 'r')
+            f = open(cs.MAPPING, 'r')
             mapping = json.loads(f.read())
             f.close()
             tasks = []

@@ -1,7 +1,7 @@
 from utils.asyncsql import AsyncDBPool, ProgrammingError, IntegrityError, OperationalError
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
-import configuration as cfg
+import configuration.settings as cs
 import asyncio
 from datetime import datetime
 import json
@@ -51,9 +51,9 @@ class PlacesListener:
             self.__value: str = value
             self.__device_id = 0
             self.__device_address = 0
-            self.__device_ip = cfg.server_ip
+            self.__device_ip = cs.WS_SERVER_IP
             self.__device_type = 0
-            self.__ampp_id = int(f'{cfg.ampp_parking_id}00')
+            self.__ampp_id = int(f'{cs.AMPP_PARKING_ID}01')
             self.__ampp_type = 1
             self.__ts = datetime.now().timestamp()
 
@@ -70,12 +70,12 @@ class PlacesListener:
                     'device_ip': self.__device_ip}
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
-        connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+        connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         # listen for loop2 status and lost ticket payment
         await self.__amqpconnector.bind('places_signals', ['status.loop2.*', 'command.physchal.*'], durable=False)
@@ -85,10 +85,10 @@ class PlacesListener:
         tasks = []
         for p in places:
             tasks.append(self.__dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'],  p['areTotalPark'], p['areFreePark'], p['areType']]))
-            if p['areId'] == cfg.MAIN_AREA and p['areFreePark'] == 0:
+            if p['areId'] == cs.WS_MAIN_AREA and p['areFreePark'] == 0:
                 warning = self.PlacesWarning('FULL')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=10))
-            elif p['areId'] == cfg.MAIN_AREA and p['areFreePark'] > 0:
+            elif p['areId'] == cs.WS_MAIN_AREA and p['areFreePark'] > 0:
                 warning = self.PlacesWarning('VACANT')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
         await asyncio.gather(*tasks)

@@ -6,7 +6,7 @@ from utils.asynclog import AsyncLogger
 from utils.asyncsql import AsyncDBPool
 from utils.asyncamqp import AsyncAMQP
 import json
-import configuration as cfg
+import configuration.settings as cs
 from .mibs import polling_mibs
 import signal
 from uuid import uuid4
@@ -50,11 +50,11 @@ class AsyncSNMPPoller:
         return self.__eventsignal
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({"module": self.name, "info": "Starting..."})
         connections_tasks = []
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
-        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx, min_size=1, max_size=5).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
@@ -63,7 +63,7 @@ class AsyncSNMPPoller:
 
     async def _process(self, device, oid):
         if not device['terId'] == 0:
-            with aiosnmp.Snmp(host=device['terIp'], port=161, community="public", timeout=cfg.snmp_timeout, retries=cfg.snmp_retries) as snmp:
+            with aiosnmp.Snmp(host=device['terIp'], port=161, community="public", timeout=cs.IS_SNMP_TIMEOUT, retries=cs.IS_SNMP_RETRIES) as snmp:
                 try:
                     for res in await snmp.get(oid):
                         snmp_object = next(mib for mib in polling_mibs if mib.oid == res.oid)
@@ -147,7 +147,7 @@ class AsyncSNMPPoller:
                         tasks.append(self._process(d, oid))
             await asyncio.gather(*tasks)
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
-            await asyncio.sleep(cfg.snmp_polling)
+            await asyncio.sleep(cs.IS_RDBS_POLLING_INTERVAL)
         else:
             await asyncio.sleep(0.5)
 

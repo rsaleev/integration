@@ -24,10 +24,10 @@ async def get_devices_status(source, rows: int = 10, level: str = None, from_dat
         date_from = date.today() if from_date is None else from_date
         date_to = date.today() if to_date is None else to_date
         try:
-            data = await ws.dbconnector_is.callproc('is_logs_get', rows=-1, values=[source, level, date_from, to_date, rows])
+            data = await ws.DBCONNECTOR_IS.callproc('is_logs_get', rows=-1, values=[source, level, date_from, to_date, rows])
             return Response(json.dumps(data, default=str, indent=4, skipkeys=True), status_code=200, media_type='application/json')
         except Exception as e:
-            tasks.add_task(ws.logger.error, {'module': name, 'path': 'rest/monitoring/statuses', 'error': repr(e)})
+            tasks.add_task(ws.LOGGER.error, {'module': name, 'path': 'rest/monitoring/statuses', 'error': repr(e)})
             return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': repr(e)}, default=str), status_code=500, media_type='application/json', background=tasks)
     else:
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Wrong parameter'}, default=str), status_code=500, media_type='application/json', background=tasks)

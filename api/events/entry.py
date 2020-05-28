@@ -13,7 +13,7 @@ from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
 from utils.asyncsoap import AsyncSOAP
-import configuration as cfg
+import configuration.settings as cs
 from datetime import timedelta
 from uuid import uuid4
 import aiohttp
@@ -56,13 +56,13 @@ class EntryListener:
         return self.__eventsignal
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cfg.log)
+        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
         connections_tasks = []
-        connections_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
-        connections_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
-        connections_tasks.append(AsyncSOAP(login=cfg.soap_user, password=cfg.soap_password, parking_id=cfg.object_id, timeout=cfg.soap_timeout, url=cfg.soap_url).connect())
-        connections_tasks.append(AsyncAMQP(user=cfg.amqp_user, password=cfg.amqp_password, host=cfg.amqp_host, exchange_name='integration', exchange_type='topic').connect())
+        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+        connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+        connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
+        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.*', 'command.challenged.in'], durable=True)
         pid = os.getpid()

@@ -1,6 +1,6 @@
 from utils.asyncsql import AsyncDBPool
 from datetime import date, timedelta
-import configuration as cfg
+import configuration.settings as cs
 import json
 from datetime import datetime, timedelta
 import asyncio
@@ -43,8 +43,8 @@ class PlatesDataMiner:
 
     async def _initialize(self):
         connection_tasks = []
-        connection_tasks.append(AsyncDBPool(conn=cfg.wp_cnx).connect())
-        connection_tasks.append(AsyncDBPool(conn=cfg.is_cnx).connect())
+        connection_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+        connection_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__dbconnector_wp, self.__dbconnector_is = await asyncio.gather(*connection_tasks)
         columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
         date_today = date.today()
