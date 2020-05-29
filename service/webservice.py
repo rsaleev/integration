@@ -63,7 +63,7 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
 
 app = FastAPI(title="Remote management Module",
               description="Wisepark Monitoring and Remote Management Module",
-              version="0.0.2 BETA", debug=True if cs.EPP_WEBSERVICE_LOG_LEVEL == 'debug' else False,
+              version="0.0.2 BETA", debug=True if cs.IS_WEBSERVICE_LOG_LEVEL == 'debug' else False,
               docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(control.router, dependencies=[Depends(get_api_key)])
@@ -81,19 +81,24 @@ app.include_router(parkconfig.router, dependencies=[Depends(get_api_key)])
 @app.on_event('startup')
 async def startup():
     ws.LOGGER = await ws.LOGGER.getlogger(cs.IS_LOG)
-    await ws.DBCONNECTOR_IS.connect()
-    await ws.DBCONNECTOR_WS.connect()
-    await ws.SOAPCONNECTOR.connect()
-    await ws.AMQPCONNECTOR.connect()
-    print('Webservice is ready')
+    ws.LOGGER.info({'module': name, 'info': 'Starting'})
+    tasks = []
+    tasks.append(ws.DBCONNECTOR_IS.connect())
+    tasks.append(ws.DBCONNECTOR_WS.connect())
+    tasks.append(ws.SOAPCONNECTOR.connect())
+    tasks.append(ws.AMQPCONNECTOR.connect())
+    await asyncio.gather(*tasks)
+    ws.LOGGER.info({'module': name, 'info': 'Started'})
 
 
 @app.on_event('shutdown')
 async def shutdown():
-    await ws.DBCONNECTOR_WS.disconnect()
-    await ws.DBCONNECTOR_IS.disconnect()
-    await ws.SOAPCONNECTOR.disconnect()
-    await ws.AMQPCONNECTOR.disconnect()
+    tasks = []
+    tasks.append(ws.DBCONNECTOR_IS.disconnect())
+    tasks.append(ws.DBCONNECTOR_WS.disconnect())
+    tasks.append(ws.SOAPCONNECTOR.disconnect())
+    tasks.append(ws.AMQPCONNECTOR.disconnect())
+    await asyncio.gather(*tasks)
     await ws.LOGGER.warning({'module': name, 'info': 'Webservice is shutting down'})
     await ws.LOGGER.shutdown()
 
