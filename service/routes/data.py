@@ -5,7 +5,7 @@ import json
 import re
 from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingError
 import configuration as cfg
-import service.settings as ws
+import integration.service.settings as ws
 import asyncio
 from datetime import date, datetime, timedelta
 from itertools import groupby

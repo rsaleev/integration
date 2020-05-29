@@ -65,4 +65,4 @@ async def upd_places(*, places: PlacesRequest):
     except ValidationError as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
         places.error = 1
-        return Response(json.dumps(places.dict(exclude_unset=True)), status_code=400, media_type='application/json', background=tasks)
+        return Response(json.dumps(places.dict(exclude_unset=True)), status_code=403, media_type='application/json', background=tasks)

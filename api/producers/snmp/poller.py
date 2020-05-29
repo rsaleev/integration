@@ -132,8 +132,9 @@ class AsyncSNMPPoller:
                 # handle SNMP exceptions
                 except (SnmpErrorNoSuchName, SnmpErrorResourceUnavailable, ValueError, SnmpTimeoutError) as e:
                     await self.__logger.error({'module': self.name, 'error': repr(e)})
-                    await asyncio.sleep(0.2)
                     pass
+                finally:
+                    await asyncio.sleep(0.2)
 
     async def _dispatch(self):
         while not self.eventsignal:
@@ -148,8 +149,6 @@ class AsyncSNMPPoller:
             await asyncio.gather(*tasks)
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
             await asyncio.sleep(cs.IS_RDBS_POLLING_INTERVAL)
-        else:
-            await asyncio.sleep(0.5)
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})

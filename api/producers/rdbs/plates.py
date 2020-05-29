@@ -69,17 +69,16 @@ class PlatesDataMiner:
 
     async def _dispatch(self):
         while not self.eventsignal:
-            if 0 <= datetime.now().hour < 1:
-                last_rep = await self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[])
-                tasks = []
-                columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
-                if last_rep['repDate'] < date.today():
-                    date_today = date.today()
-                    days_interval = date_today - last_rep['repDate']
-                    dates = [last_rep['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
-                    for c in columns:
-                        for d in dates:
-                            await asyncio.gather(self._fetch(c, d), return_exceptions=True)
+            last_rep = await self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[])
+            tasks = []
+            columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
+            if last_rep['repDate'] < date.today():
+                date_today = date.today()
+                days_interval = date_today - last_rep['repDate']
+                dates = [last_rep['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
+                for c in columns:
+                    for d in dates:
+                        await asyncio.gather(self._fetch(c, d), return_exceptions=True)
             await asyncio.sleep(3600)
 
     async def _signal_cleanup(self):

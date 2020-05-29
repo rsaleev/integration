@@ -64,7 +64,7 @@ class EntryListener:
         connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
         connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
-        await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.*', 'command.challenged.in'], durable=True)
+        await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.*', 'command.challenged.in', 'command.manual.open'], durable=True)
         pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         await self.__logger.info({'module': self.name, 'info': 'Started'})
@@ -172,8 +172,7 @@ class EntryListener:
         post_tasks = []
         data['tra_uid'] = temp_data['transactionUID']
         # simulate normal processing and send data to exchange instantly
-        post_tasks.apppend(self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.reverse'], priority=10))
-        post_tasks.append(self.__amqpconnector.send(data=temp_data, persistent=True, keys=['entry.reversed'], priority=8))
+        post_tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.reverse'], priority=10))
         # post processing operations
         post_tasks.append(self.__dbconnector_is.callproc('is_entry_upd', rows=0, values=[data['device_id'], data['act_uid'], 'REVERSED',
                                                                                          json.dumps(transit_data, default=str), None, 1, data['ts']]))
@@ -199,7 +198,7 @@ class EntryListener:
                         elif data['value'] == 'FREE':
                             temp_data = await self.__dbconnector_is.callproc('is_entry_temp_get', rows=1, values=[data['device_address']])
                             data['tra_uid'] = temp_data['transactionUID']
-                            await self.__amqpconnector.send(data, persistent=True, keys=['active.entry.loop1'], priority=10)
+                            await self.__amqpconnector.send(data, persistent=True, keys=['event.entry.loop1'], priority=10)
                       # 2nd message barrier opened
                     elif data['codename'] == 'Command' and data['value'] == 'MANUALLY_OPEN':
                         await self._process_command_event(data, device)
@@ -208,7 +207,7 @@ class EntryListener:
                     elif data['codename'] == 'BarrierStatus' and data['value'] == 'CLOSED':
                         temp_data = await self.__dbconnector_is.callproc('is_entry_partial_get', rows=1, values=[data['device_address']])
                         data['tra_uid'] = temp_data['transactionUID']
-                        await self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.barrier'], priority=10)
+                        await self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.barrier'], priority=10)
                     # 2nd  possible message loop 1 reversed car
                     elif data['codename'] == 'Loop1Reverse' and data['value'] == 'REVERSED':
                         # check if temp data is stored and delete record
@@ -220,15 +219,13 @@ class EntryListener:
                         tasks = []
                         temp_data = await self.__dbconnector_is.callproc('is_entry_temp_get', rows=1, values=[data['device_address']])
                         data['tra_uid'] = temp_data['transactionUID']
-                        tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['active.entry.loop2'], priority=9))
+                        tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2'], priority=9))
                         tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_address']]))
                         await asyncio.gather(*tasks)
                 # possible lost ticket entry
                 elif key == 'status.payment.finished':
                     # try to fetch data from DB
-                    print(data)
                     transit_data = await self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])])
-                    print(transit_data)
                     if not transit_data is None and transit_data['transactionType'] == 'LOST' and transit_data['transitionFine'] > 0:
                         tasks = []
                         # simulate

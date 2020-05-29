@@ -67,9 +67,7 @@ app = FastAPI(title="Remote management Module",
               docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(control.router, dependencies=[Depends(get_api_key)])
-#app.include_router(data.router, dependencies=[Depends(get_api_key)])
-app.include_router(data.router)
-
+app.include_router(data.router, dependencies=[Depends(get_api_key)])
 app.include_router(logs.router, dependencies=[Depends(get_api_key)])
 app.include_router(places.router, dependencies=[Depends(get_api_key)])
 app.include_router(services.router, dependencies=[Depends(get_api_key)])
@@ -87,6 +85,7 @@ async def startup():
     await ws.DBCONNECTOR_WS.connect()
     await ws.SOAPCONNECTOR.connect()
     await ws.AMQPCONNECTOR.connect()
+    print('Webservice is ready')
 
 
 @app.on_event('shutdown')
@@ -114,4 +113,4 @@ async def rdbs():
 
 
 def run():
-    uvicorn.run(app=app, host=cs.IS_WEBSERVICE_HOST, port=cs.EPP_WEBSERVICE_PORT, workers=cs.EPP_WEBSERVICE_PORT, log_level=cs.EPP_WEBSERVICE_LOG_LEVEL)
+    uvicorn.run(app=app, host=cs.IS_WEBSERVICE_HOST, port=cs.IS_WEBSERVICE_PORT, workers=cs.IS_WEBSERVICE_WORKERS, log_level=cs.IS_WEBSERVICE_LOG_LEVEL)

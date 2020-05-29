@@ -5,19 +5,19 @@ from fastapi.routing import APIRouter
 from starlette.responses import Response, JSONResponse
 import json
 from pydantic import BaseModel, ValidationError, validator
-import configuration.settings as cs
 import asyncio
 from datetime import datetime, timedelta
 from zeep.exceptions import TransportError, LookupError
 from zeep.exceptions import Error as ClientError
-import integration.service.settings as ws
 from uuid import uuid4
 from starlette.background import BackgroundTasks
 import dateutil.parser as dp
+import integration.service.settings as ws
+import configuration.settings as cs
 
 router = APIRouter()
 
-name = "cmiu.control"
+name = "control"
 
 
 class CommandRequest(BaseModel):
@@ -120,7 +120,7 @@ async def open_barrier(device, request):
     if status['statusVal'] == 'OPENED':
         report_status = CommandStatus(device, 'Barrier', 'ALREADY_OPENED')
         try:
-            await asyncio.wait_for(ws.amqpconnector.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
+            await asyncio.wait_for(ws.AMQPCONNECTOR.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
         except:
             pass
         return False
@@ -133,12 +133,12 @@ async def open_barrier(device, request):
         tasks = []
         tasks.append(ws.SOAPCONNECTOR.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open'))
         report_status_pre_execution = CommandStatus(device, 'Command', CommandType(request.command_number).name)
-        tasks.append(ws.amqpconnector.send(report_status_pre_execution.instance, persistent=True, keys=['command.entry.barrier', 'active.barrier'], priority=10))
+        tasks.append(ws.AMQPCONNECTOR.send(report_status_pre_execution.instance, persistent=True, keys=['command.entry.barrier', 'active.barrier'], priority=10))
         futures = await asyncio.gather(*tasks)
         result = futures[0]
         if result:
             report_status_post_execution = CommandStatus(device, 'BarrierStatus', 'MANUALLY_OPENED')
-            ws.amqpconnector.send(report_status_pre_execution.instance, persistent=True, keys=['command.entry.barrier', 'active.barrier'], priority=10)
+            ws.AMQPCONNECTOR.send(report_status_pre_execution.instance, persistent=True, keys=['command.entry.barrier', 'active.barrier'], priority=10)
         return result
 
 
@@ -375,23 +375,21 @@ async def challenged_in(device, request):
         if status['statusVal'] == 'OPENED':
             report_status = CommandStatus(device, 'Barrier', 'ALREADY_OPENED')
             try:
-                await asyncio.wait_for(ws.amqpconnector.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
+                await asyncio.wait_for(ws.AMQPCONNECTOR.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
             except:
                 pass
             return False
         elif (adv_status['statusVal'] == 'LOCKED' or
               gate_status['statusVal'] == 'OUT_OF_SERVICE' or
               network_status['statusVal'] == 'OFFLINE' or
-              last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+              last_command['statusVal'] == 'CHALLENGED_IN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
             return False
         else:
             tasks = []
             tasks.append(ws.SOAPCONNECTOR.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open'))
-            tasks.append(ws.DBCONNECTOR_IS.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', 'MANUALLY_OPEN', datetime.now()]))
-            tasks.append(ws.DBCONNECTOR_IS.callproc('is_status_upd', rows=0, values=[0, 'Command', CommandType(request.command_number).name, datetime.now()]))
-            report_status_barrier = CommandStatus(device, 'Command', 'MANUALLY_OPEN')
-            report_status_server = CommandStatus(device_server, 'Command', CommandType(request.command_number).name)
-            tasks.append(ws.amqpconnector.send(report_status_barrier.instance, persistent=True, keys=['active.barrier', 'command.challenged.in'], priority=10))
+            tasks.append(ws.DBCONNECTOR_IS.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command',  CommandType(request.command_number).name, datetime.now()]))
+            report_status_barrier = CommandStatus(device, 'Command',  CommandType(request.command_number).name)
+            tasks.append(ws.AMQPCONNECTOR.send(report_status_barrier.instance, persistent=True, keys=['active.barrier', 'command.challenged.in'], priority=10))
             result, _, _, _ = await asyncio.gather(*tasks)
             return result
     else:
@@ -414,25 +412,22 @@ async def challenged_out(device, request):
         if status['statusVal'] == 'OPENED':
             report_status = CommandStatus(device, 'Barrier', 'ALREADY_OPENED')
             try:
-                await asyncio.wait_for(ws.amqpconnector.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
+                await asyncio.wait_for(ws.AMQPCONNECTOR.send(report_status.instance, persistent=True, keys=['active.barrier'], priority=10), timeout=0.5)
             except:
                 pass
             return False
         elif (adv_status['statusVal'] == 'LOCKED' or
               gate_status['statusVal'] == 'OUT_OF_SERVICE' or
               network_status['statusVal'] == 'OFFLINE' or
-              last_command['statusVal'] == 'OPEN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)
-              and last_server_command['statusVal'] == 'CHALLENGED_IN' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
+              last_command['statusVal'] == 'CHALLENGED_OUT' and (last_command['statusTs'] is None or last_command['statusTs'] + timedelta(seconds=5) < request.date_event)):
             return False
         else:
             tasks = []
             tasks.append(ws.SOAPCONNECTOR.execute('SetDeviceStatusHeader', header=True, device=device['terAddress'], sStatus='open'))
-            tasks.append(ws.DBCONNECTOR_IS.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command', 'MANUALLY_OPEN', datetime.now()]))
-            tasks.append(ws.DBCONNECTOR_IS.callproc('is_status_upd', rows=0, values=[0, 'Command', CommandType(request.command_number).name, datetime.now()]))
-            report_status_barrier = CommandStatus(device, 'Command', 'OPEN')
-            report_status_server = CommandStatus(device_server, 'Command', CommandType(request.command_number).names)
-            tasks.append(ws.amqpconnector.send(report_status_barrier.instance, persistent=True, keys=['active.barrier', 'comamnd.challenged.in'], priority=10))
-            result, _, _, _, _ = await asyncio.gather(*tasks)
+            tasks.append(ws.DBCONNECTOR_IS.callproc('is_status_upd', rows=0, values=[device['terId'], 'Command',  CommandType(request.command_number).name, datetime.now()]))
+            report_status_barrier = CommandStatus(device, 'Command',  CommandType(request.command_number).name)
+            tasks.append(ws.AMQPCONNECTOR.send(report_status_barrier.instance, persistent=True, keys=['active.barrier', 'command.challenged.in'], priority=10))
+            result, _, _, _ = await asyncio.gather(*tasks)
             return result
     else:
         return False
@@ -450,7 +445,6 @@ async def ccom_exec(*, request: CommandRequest):
     try:
         if request.type == "command":
             device = await ws.DBCONNECTOR_IS.callproc('is_device_get', rows=1, values=[request.came_device_id, None, None, None, None])
-            print(device)
             if not device is None:
                 tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "request": request.dict(exclude_unset=True)})
                 tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -462,7 +456,6 @@ async def ccom_exec(*, request: CommandRequest):
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-
                             response.date_event = datetime.now()
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
@@ -513,6 +506,7 @@ async def ccom_exec(*, request: CommandRequest):
 
                         else:
                             response.error = 1
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -523,16 +517,19 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
                 elif request.command_number == 12:
                     if device['terType'] in [1, 2]:
                         result = await unlock_barrier(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
                             response.error = 1
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -543,9 +540,11 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
                 elif request.command_number == 15:
                     result = await turnoff_device(device, request)
                     if result:
+                        response.date_event = datetime.now()
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -553,6 +552,7 @@ async def ccom_exec(*, request: CommandRequest):
 
                     else:
                         response.error = 1
+                        response.date_event = datetime.now()
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -566,6 +566,7 @@ async def ccom_exec(*, request: CommandRequest):
                         return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                     else:
                         response.error = 1
+                        response.date_event = datetime.now()
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -573,6 +574,7 @@ async def ccom_exec(*, request: CommandRequest):
                 elif request.command_number == 25:
                     result = await reboot_device(device, request)
                     if result:
+                        response.date_event = datetime.now()
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -580,6 +582,7 @@ async def ccom_exec(*, request: CommandRequest):
 
                     else:
                         response.error = 1
+                        response.date_event = datetime.now()
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -588,12 +591,14 @@ async def ccom_exec(*, request: CommandRequest):
                     if device['terType'] in [1, 2]:
                         result = await lock_barrier_opened(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
                             response.error = 1
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -604,16 +609,19 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
                 elif request.command_number == 31:
                     if device['terType'] in [1, 2]:
                         result = await unlock_barrier_opened(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
                             response.error = 1
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -624,15 +632,18 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
                 elif request.command_number == 40:
                     if device['terType'] in [1, 2]:
                         result = await block_all_transit(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
+                            response.date_event = datetime.now()
                             response.error = 1
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -644,15 +655,18 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
                 elif request.command_number == 41:
                     if device['terType'] in [1, 2]:
                         result = await block_casual_transit(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
+                            response.date_event = datetime.now()
                             response.error = 1
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
@@ -664,16 +678,20 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+
                 elif request.command_number == 42:
                     if device['terType'] in [1, 2]:
                         result = await unblock_transit(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
                             response.error = 1
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -684,20 +702,25 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
 
                 elif request.command_number == 81:
                     pass
 
+                elif request.command_number == 82:
+                    pass
                 elif request.command_number == 101:
-                    if device['terType'] in [1, 2]:
+                    if device['terType'] == 1:
                         result = await challenged_in(device, request)
                         if result:
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
                             return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
                         else:
                             response.error = 1
+                            response.date_event = datetime.now()
                             tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                             tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                      json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
@@ -708,9 +731,35 @@ async def ccom_exec(*, request: CommandRequest):
                         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
                         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
                                                                                                  json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
-
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                elif request.command_number == 102:
+                    if device['terType'] == 2:
+                        result = await challenged_out(device, request)
+                        if result:
+                            response.date_event = datetime.now()
+                            tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=200, media_type='application/json', background=tasks)
+                        else:
+                            response.error = 1
+                            response.date_event = datetime.now()
+                            tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                            tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                     json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                            return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                    else:
+                        response.error = 1
+                        response.date_event = datetime.now()
+                        tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": response.dict(exclude_unset=True)})
+                        tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
+                                                                                                 json.dumps({'uid': str(uid), 'response': response.dict(exclude_unset=True)}, ensure_ascii=False, default=str), datetime.now()])
+                        return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
+                else:
+                    response.error = 1
+                    response.date_event = datetime.now()
+                    return Response(json.dumps(response.dict(exclude_unset=True), default=str), status_code=403, media_type='application/json', background=tasks)
     except Exception as e:
-        raise e
         response.error = 1
         tasks.add_task(ws.LOGGER.info, {"module": name, "uid": str(uid), "operation": CommandType(request.command_number).name, "response": repr(e)})
         tasks.add_task(ws.DBCONNECTOR_IS.callproc, 'is_log_ins', rows=0, values=[name, 'info',
