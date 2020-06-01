@@ -61,7 +61,7 @@ async def get_data():
         return data_out
     except Exception as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
-        return Response(json.dumps({'error': 'BAD REQUEST', 'comment': 'Not found'}), status_code=400, media_type='application/json', background=tasks)
+        return Response(json.dumps({'error': 'BAD REQUEST', 'comment': repr(e)}), status_code=400, media_type='application/json', background=tasks)
 
 
 @router.post('/api/integration/v1/places', response_model=dataResponse)
