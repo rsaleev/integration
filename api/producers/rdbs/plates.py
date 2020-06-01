@@ -81,7 +81,7 @@ class PlatesDataMiner:
                     for d in dates:
                         await asyncio.gather(self._fetch(c, d))
                         await asyncio.sleep(0.5)
-            await self.sleep(1000)
+            await asyncio.sleep(1000)
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
