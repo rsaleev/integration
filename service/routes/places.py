@@ -46,7 +46,7 @@ async def get_data():
     data_out = ([{"areaId": key,
                   "terDescription": next(d1['terDescription'] for d1 in data if d1['areaId'] == key),
                   "areaPlaces": [({'date': g['ts'],
-                                   'clientType':'occasional' if g['clientType'] == 1 else 'challenged' if g['clientType'] == 2 else 'subscription' if g['clientType'] == 3,
+                                   'clientType':'occasional' if g['clientType'] == 1 else 'challenged' if g['clientType'] == 2 else 'subscription',
                                    'totalPlaces':g['totalPlaces'],
                                    'occupiedPlaces':g['occupiedPlaces'],
                                    'freePlaces':g['freePlaces'],
