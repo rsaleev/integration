@@ -42,7 +42,7 @@ async def get_data():
         data_out = []
         areas = [p['areaId'] for p in data]
         for area in areas:
-            tickets = ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area])
+            tickets = await ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area])
             places = next(p for p in data if p['areaId'] == area)
             places.update(tickets)
             data_out.append(places)
