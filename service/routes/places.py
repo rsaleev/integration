@@ -44,7 +44,7 @@ async def get_data():
         for area in areas:
             tickets = ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area])
             places = next(p for p in data if p['areaId'] == area)
-            places.append(tickets)
+            places.update(tickets)
             data_out.append(places)
         return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
     except Exception as e:
