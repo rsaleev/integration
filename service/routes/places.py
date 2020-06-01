@@ -38,7 +38,7 @@ class dataResponse(BaseModel):
 async def get_data():
     tasks = BackgroundTasks()
     try:
-        data = await ws.DBCONNECTOR_IS.callproc('is_data_get', rows=-1, values=[None])
+        data = await ws.DBCONNECTOR_IS.callproc('is_places_get', rows=-1, values=[None])
         areas = [p['areaId'] for p in data]
         data_tasks = []
         for area in areas:
