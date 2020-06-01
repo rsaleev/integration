@@ -39,26 +39,15 @@ async def get_data():
     tasks = BackgroundTasks()
     try:
         data = await ws.DBCONNECTOR_IS.callproc('is_places_get', rows=-1, values=[None])
+        data_out = []
         areas = [p['areaId'] for p in data]
         data_tasks = []
         for area in areas:
-            data_tasks.append(ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area]))
-        tickets = await asyncio.gather(*data_tasks)
-        data.append(tickets)
-        data_out = ([{"areaId": key,
-                      "areaDescription": next(d1['areaDescription'] for d1 in data if d1['areaId'] == key),
-                      "areaFloor":next(d2['areaFloor'] for d2 in data if d2['areaId'] == key),
-                      "clientType":next(d3['client_type'] for d3 in data if d3['areaId'] == key),
-                      "totalPlaces":next(d4['totalPlaces'] for d4 in data if d4['areaId'] == key),
-                      "occupiedPlaces":next(d5['occupiedPlaces'] for d5 in data if d5['areaId'] == key),
-                      "freePlaces":next(d6['freePlaces'] for d6 in data if d6['areaId'] == key),
-                      "unavailablePlaces":next(d7['unavailablePlaces'] for d7 in data if d7['areaId'] == key),
-                      "reservedPlaces":next(d8['reservedPlaces'] for d8 in data if d8['areaId'] == key),
-                      "activeCommercial":next(d9['activeCommercial'] for d9 in tickets if d9['areaId'] == key),
-                      "activeSubscription":next(d10['activeCommercial'] for d10 in tickets if d10['areaId'] == key),
-                      "ts":next(d11['ts'] for d11 in data if d11['areaId'] == key)}
-                     for key, group in groupby(data, key=lambda x: x['areaId'])])
-        return data_out
+            tickets = ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area])
+            places = [p for p in data if p['areaId'] == area]
+            places.append(tickets)
+            data_out.append(places)
+        return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
     except Exception as e:
         tasks.add_task(ws.LOGGER.error, {'module': name, 'error': repr(e)})
         return Response(json.dumps({'error': 'BAD REQUEST', 'comment': repr(e)}), status_code=400, media_type='application/json', background=tasks)
