@@ -39,20 +39,33 @@ async def get_data():
     tasks = BackgroundTasks()
     data = await ws.DBCONNECTOR_IS.callproc('is_places_get', rows=-1, values=[None])
     inner_tasks = []
-    for area in [d['areaId'] for d in data]:
+    areas = set([d['areaId'] for d in data])
+    for area in areas:
         inner_tasks.append(ws.DBCONNECTOR_WS.callproc('wp_active_tickets_get', rows=1, values=[area]))
     tickets = await asyncio.gather(*inner_tasks)
-    data_out = ([{"areaId": key,
-                  "areaDescription": next(d1['areaDescription'] for d1 in data if d1['areaId'] == key),
-                  "areaPlaces": [({'date': g['ts'],
-                                   'clientType':'occasional' if g['clientType'] == 1 else 'challenged' if g['clientType'] == 2 else 'subscription',
-                                   'totalPlaces':g['totalPlaces'],
-                                   'occupiedPlaces':g['occupiedPlaces'],
-                                   'freePlaces':g['freePlaces'],
-                                   'unavailablePlaces':g['unavailablePlaces'],
-                                   'reserveredPlaces':g['reservedPlaces'],
-                                   'activeTickets':next((t['activeTickets'] for t in tickets if g['clientType'] == t['clientType'] and t['areaId'] == g['areaId']), 0)}) for g in group]}
-                 for key, group in groupby(data, key=lambda x: x['areaId'])])
+    data_out = []
+    for area in areas:
+        area_places = {'areaId': area,
+                       'areaDescription': next(d1['areaDescription'] for d1 in data if d1['areaId'] == area),
+                       'occasional': {
+                           'totalPlaces': next(d2['totalPlaces'] for d2 in data if d2['areaId'] == area and d2['clientType'] == 1),
+                           'occupiedPlaces': next(d3['occupiedPlaces']for d3 in data if d3['areaId'] == area and d3['clientType'] == 1),
+                           'freePlaces': next(d4['occupiedPlaces']for d4 in data if d4['areaId'] == area and d4['clientType'] == 1),
+                           'activeTickets': next((t1['activeTickets'] for t1 in tickets if t1['areaId'] == area and t1['clientType'] == 1), 0)
+                       },
+                       'challenged': {
+                           'totalPlaces': next(d5['totalPlaces'] for d5 in data if d5['areaId'] == area and d5['clientType'] == 2),
+                           'occupiedPlaces': next(d6['occupiedPlaces']for d6 in data if d6['areaId'] == area and d6['clientType'] == 2),
+                           'freePlaces': next(d7['occupiedPlaces']for d7 in data if d7['areaId'] == area and d7['clientType'] == 2),
+                           'activeTickets': 0
+                       },
+                       'subscription': {
+                           'totalPlaces': next(d8['totalPlaces'] for d8 in data if d8['areaId'] == area and d8['clientType'] == 3),
+                           'occupiedPlaces': next(d9['occupiedPlaces']for d9 in data if d9['areaId'] == area and d9['clientType'] == 3),
+                           'freePlaces': next(d10['occupiedPlaces']for d10 in data if d10['areaId'] == area and d10['clientType'] == 3),
+                           'activeTickets': next((t3['activeTickets'] for t3 in tickets if t3['areaId'] == area and t3['clientType'] == 3), 0)
+                       }}
+        data_out.append(area_places)
     return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json', background=tasks)
 
 
