@@ -21,7 +21,7 @@ class TicketRequest(BaseModel):
     operator: str
 
 
-@router.get('/rest/monitoring/ticket/{number}')
+@router.get('/api/integration/v1/ticket/{number}')
 async def get_ticket(number):
     tasks = BackgroundTasks()
     tasks.add_task(ws.LOGGER.info, {'module': name, 'path': f'rest/monitoring/ticket/number/{number}'})
@@ -65,7 +65,7 @@ async def get_ticket(number):
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Wrong ticket format. Expected format: ([0-9]{11} or [0-9]{24})'}), status_code=403, media_type='application/json')
 
 
-@router.post('/rest/monitoring/ticket')
+@router.post('/api/v1/integration/ticket')
 async def upd_ticket(req: TicketRequest):
     tasks = BackgroundTasks()
     if re.match("^[1-9]{4}[0-9]{7}$", req.ticket) or re.match("[1-9]{4}[0-9]{20}$", req.ticket):

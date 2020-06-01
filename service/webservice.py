@@ -4,7 +4,7 @@ from uuid import uuid4
 import json
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, Security, Header
-from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN, HTTP_407_PROXY_AUTHENTICATION_REQUIRED
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.responses import Response, JSONResponse, PlainTextResponse
 from starlette.requests import Request
@@ -43,7 +43,7 @@ async def get_api_key(
             )
     else:
         raise HTTPException(
-            status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
+            status_code=HTTP_407_PROXY_AUTHENTICATION_REQUIRED, detail="Authentication required"
         )
 
 
