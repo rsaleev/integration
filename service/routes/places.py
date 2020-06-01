@@ -50,7 +50,7 @@ async def get_data():
                       "areaFloor":next(d2['areaFloor'] for d2 in data if d2['areaId'] == key),
                       "clientType":next(d3['client_type'] for d3 in data if d3['areaId'] == key),
                       "totalPlaces":next(d4['totalPlaces'] for d4 in data if d4['areaId'] == key),
-                      "occupiedPlaces":next(d5['occupieddata'] for d5 in data if d5['areaId'] == key),
+                      "occupiedPlaces":next(d5['occupiedPlaces'] for d5 in data if d5['areaId'] == key),
                       "freePlaces":next(d6['freePlaces'] for d6 in data if d6['areaId'] == key),
                       "unavailablePlaces":next(d7['unavailablePlaces'] for d7 in data if d7['areaId'] == key),
                       "reservedPlaces":next(d8['reservedPlaces'] for d8 in data if d8['areaId'] == key),
