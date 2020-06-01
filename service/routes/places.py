@@ -60,7 +60,7 @@ async def get_data():
                      for key, group in groupby(data, key=lambda x: x['areaId'])])
         return data_out
     except Exception as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'error': repr(e)})
         return Response(json.dumps({'error': 'BAD REQUEST', 'comment': repr(e)}), status_code=400, media_type='application/json', background=tasks)
 
 
@@ -80,10 +80,10 @@ async def upd_data(*, data: dataRequest):
         data.error = 0
         return Response(json.dumps(data.dict(exclude_unset=True)), status_code=200, media_type='application/json', background=tasks)
     except (ProgrammingError, OperationalError) as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'error': repr(e)})
         data.error = 1
         return Response(json.dumps(data.dict(exclude_unset=True)), status_code=500, media_type='application/json', background=tasks)
     except ValidationError as e:
-        tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
+        tasks.add_task(ws.LOGGER.error, {'module': name, 'error': repr(e)})
         data.error = 1
         return Response(json.dumps(data.dict(exclude_unset=True)), status_code=403, media_type='application/json', background=tasks)
