@@ -34,7 +34,7 @@ class dataResponse(BaseModel):
     error: int = 0
 
 
-@router.get('/api/integration/v1/data')
+@router.get('/api/integration/v1/places')
 async def get_data():
     tasks = BackgroundTasks()
     try:
@@ -64,7 +64,7 @@ async def get_data():
         return Response(json.dumps({'error': 'BAD REQUEST', 'comment': 'Not found'}), status_code=400, media_type='application/json', background=tasks)
 
 
-@router.post('/api/integration/v1/data', response_model=dataResponse)
+@router.post('/api/integration/v1/places', response_model=dataResponse)
 async def upd_data(*, data: dataRequest):
     tasks = BackgroundTasks()
     uid = uuid4()
