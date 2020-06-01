@@ -42,7 +42,8 @@ async def get_data():
     for area in [d['areaId'] for d in data]:
         inner_tasks.append(ws.DBCONNECTOR_WS.callproc('wp_active_tickets_get', rows=1, values=[area]))
     tickets = await asyncio.gather(*inner_tasks)
-    [d['activeTickets'] == (next(t['activeTickets'] for t in tickets if t['clientType'] == d['clientType'] and t['areaId'] == d['areaId']), 0) for d in data]
+    for d in data:
+        d['activeTickets'] = (next(t['activeTickets'] for t in tickets if t['clientType'] == d['clientType'] and t['areaId'] == d['areaId']), 0)
     data_out = ([{"areaId": key,
                   "terDescription": next(d1['terDescription'] for d1 in data if d1['areaId'] == key),
                   "areaPlaces": [({'date': g['ts'],
