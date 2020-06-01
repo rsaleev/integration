@@ -45,7 +45,7 @@ async def get_data():
     for d in data:
         d['activeTickets'] = next((t['activeTickets'] for t in tickets if t['clientType'] == d['clientType'] and t['areaId'] == d['areaId']), 0)
     data_out = ([{"areaId": key,
-                  "terDescription": next(d1['terDescription'] for d1 in data if d1['areaId'] == key),
+                  "areaDescription": next(d1['areaDescription'] for d1 in data if d1['areaId'] == key),
                   "areaPlaces": [({'date': g['ts'],
                                    'clientType':'occasional' if g['clientType'] == 1 else 'challenged' if g['clientType'] == 2 else 'subscription',
                                    'totalPlaces':g['totalPlaces'],
