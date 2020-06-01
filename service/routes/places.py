@@ -46,7 +46,7 @@ async def get_data():
             places = next(p for p in data if p['areaId'] == area)
             places.append(tickets)
             data_out.append(places)
-        return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')
+        return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
     except Exception as e:
         tasks.add_task(ws.LOGGER.error, {'module': name, 'error': repr(e)})
         return Response(json.dumps({'error': 'BAD REQUEST', 'comment': repr(e)}), status_code=400, media_type='application/json', background=tasks)
