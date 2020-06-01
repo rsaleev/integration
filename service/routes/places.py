@@ -37,19 +37,24 @@ class dataResponse(BaseModel):
 @router.get('/api/integration/v1/places')
 async def get_data():
     tasks = BackgroundTasks()
-    try:
-        data = await ws.DBCONNECTOR_IS.callproc('is_places_get', rows=-1, values=[None])
-        data_out = []
-        areas = [p['areaId'] for p in data]
-        for area in areas:
-            tickets = await ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area])
-            places = next(p for p in data if p['areaId'] == area)
-            places.update(tickets)
-            data_out.append(places)
-        return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
-    except Exception as e:
-        tasks.add_task(ws.LOGGER.error, {'module': name, 'error': repr(e)})
-        return Response(json.dumps({'error': 'BAD REQUEST', 'comment': repr(e)}), status_code=400, media_type='application/json', background=tasks)
+    data = await ws.DBCONNECTOR_IS.callproc('is_places_get', rows=-1, values=[None])
+    inner_tasks = []
+    for area in [d['areaId'] for d in data]:
+        inner_tasks.append(ws.DBCONNECTOR_WS.callproc('wp_atvive_tickets_get', rows=1, values=[area]))
+    tickets = await asyncio.gather(*inner_tasks)
+    [d.update(next(t['activeTickets'] for t in tickets if t['clientType'] == d['clientType'] and t['areaId'] == d['areaId']), 0) for d in data]
+    data_out = ([{"areaId": key,
+                  "terDescription": next(d1['terDescription'] for d1 in data if d1['areaId'] == key),
+                  "areaPlaces": [({'date': g['ts'],
+                                   'clientType':'occasional' if g['clientType'] == 1 else 'challenged' if g['clientType'] == 2 else 'subscription' if g['clientType'] == 3,
+                                   'totalPlaces':g['totalPlaces'],
+                                   'occupiedPlaces':g['occupiedPlaces'],
+                                   'freePlaces':g['freePlaces'],
+                                   'unavailablePlaces':g['unavailablePlaces'],
+                                   'reserveredPlaces':g['reservedPlaces'],
+                                   'activeTickets':g['activeTickets']}) for g in group]}
+                 for key, group in groupby(data, key=lambda x: x['areaId'])])
+    return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json', background=tasks)
 
 
 @router.post('/api/integration/v1/places', response_model=dataResponse)
