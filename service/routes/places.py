@@ -57,6 +57,7 @@ async def get_places():
                   "activeSubscription":next(d10['activeCommercial'] for d10 in tickets if d10['areaId'] == key),
                   "ts":next(d11['ts'] for d11 in places if d11['areaId'] == key)}
                  for key, group in groupby(data, key=lambda x: x['areaId'])])
+        return data
     except Exception as e:
         tasks.add_task(ws.logger.error, {'module': name, 'error': repr(e)})
         return Response(json.dumps({'error': 'BAD REQUEST', 'comment': 'Not found'}), status_code=400, media_type='application/json', background=tasks)
