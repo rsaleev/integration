@@ -40,10 +40,10 @@ async def get_places():
     try:
         places = await ws.DBCONNECTOR_IS.callproc('is_places_get', rows=-1, values=[None])
         areas = [p['areaId'] for p in places]
-        tasks = []
+        places_tasks = []
         for area in areas:
-            tasks.append(ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area]))
-        tickets = await asyncio.gather(*tasks)
+            places_tasks.append(ws.DBCONNECTOR_WS.callproc('wp_active_tickets', rows=1, values=[area]))
+        tickets = await asyncio.gather(*places_tasks)
         data = ([{"areaId": key,
                   "areaDescription": next(d1['areaDescription'] for d1 in places if d1['areaId'] == key),
                   "areaFloor":next(d2['areaFloor'] for d2 in places if d2['areaId'] == key),
