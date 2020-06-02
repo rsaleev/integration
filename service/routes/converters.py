@@ -97,7 +97,7 @@ async def troika_uid(uid):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
                                             capath=cs.METRO_CERT_PATH)
     sslcontext.load_cert_chain(
-        certfile=f'{cs.METRO_CERT_PATHL}/ampp.crt',
+        certfile=f'{cs.METRO_CERT_PATH}/ampp.crt',
         keyfile=f'{cs.METRO_CERT_PATH}/ampp.key')
     conn = aiohttp.TCPConnector(ssl_context=sslcontext)
     async with aiohttp.ClientSession(connector=conn) as session:
@@ -113,7 +113,6 @@ async def troika_uid(uid):
                     data_out['cameCode'] = await troika_convert(data.card['uid'])
                     data_out['cardStatus'] = data.card['status']
                     return JSONResponse(data_out)
-
                 elif r.status == 400:
                     response = await r.json()
                     data = Card(**response)

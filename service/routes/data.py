@@ -10,7 +10,7 @@ import asyncio
 from datetime import date, datetime, timedelta
 from itertools import groupby
 from operator import itemgetter
-
+import dateutil.parser as dp
 
 router = APIRouter()
 
@@ -47,3 +47,25 @@ async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
                                      'accuracy':g['accuracy']}) for g in group]}
                  for key, group in groupby(data, key=lambda x: x['terAddress'])])
     return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
+
+
+@router.get('/api/integration/v1/report/consumables')
+async def get_consumables(from_dt: str = None, to_dt=None):
+    from_day = None
+    from_year = None
+    from_month = None
+    to_day = None
+    to_year = None
+    to_month = None
+    if from_dt:
+        from_dt_dt = dp.parse(from_dt)
+        from_year = from_dt_dt.year
+        from_month = from_dt_dt.month
+        from_day = from_dt_dt.day
+    if to_dt:
+        to_dt_dt = dp.parse(to_dt)
+        to_year = to_dt_dt.year
+        to_month = to_dt_dt.month
+        to_day = to_dt_dt.day
+    data = await ws.DBCONNECTOR_WS.callproc('rep_consumables', rows=1, values=[from_month, from_year, from_day, to_month, to_year, to_day])
+    return Response(json.dumps(data, default=str), status_code=200, media_type='application/json')

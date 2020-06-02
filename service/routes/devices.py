@@ -3,7 +3,7 @@ from starlette.responses import Response
 from starlette.background import BackgroundTasks
 import json
 import configuration as cfg
-import service.settings as ws
+import integration.service.settings as ws
 import asyncio
 from pydantic import BaseModel, validator
 from typing import Optional

@@ -1,11 +1,12 @@
 from fastapi.routing import APIRouter
+from fastapi import Header
 from starlette.responses import Response
 import json
 import re
 import dateutil.parser as dp
 from starlette.background import BackgroundTask, BackgroundTasks
 import configuration as ws
-from service import settings as ws
+import integration.service.settings as ws
 from aiomysql import OperationalError, InternalError, ProgrammingError
 from pydantic import BaseModel
 import asyncio
@@ -15,14 +16,8 @@ router = APIRouter()
 name = 'webservice_subscrition'
 
 
-class TicketRequest(BaseModel):
-    ticket: str
-    operation: str
-    operator: str
-
-
 @router.get('/api/integration/v1/ticket/{number}')
-async def get_ticket(number):
+async def get_ticket(number: str):
     tasks = BackgroundTasks()
     tasks.add_task(ws.LOGGER.info, {'module': name, 'path': f'rest/monitoring/ticket/number/{number}'})
     if len(number) == 11:
@@ -65,31 +60,31 @@ async def get_ticket(number):
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Wrong ticket format. Expected format: ([0-9]{11} or [0-9]{24})'}), status_code=403, media_type='application/json')
 
 
-@router.post('/api/v1/integration/ticket')
-async def upd_ticket(req: TicketRequest):
+@router.get('/api/integration/v1/ticket/{number}/{operation}')
+async def upd_ticket(number, operation, operator: str = Header('UserName', convert_underscores=False)):
     tasks = BackgroundTasks()
-    if re.match("^[1-9]{4}[0-9]{7}$", req.ticket) or re.match("[1-9]{4}[0-9]{20}$", req.ticket):
+    if re.match("^[1-9]{4}[0-9]{7}$", number) or re.match("[1-9]{4}[0-9]{20}$", number):
         try:
-            if req.operation == 'enable':
-                if len(req.ticket) == 11:
-                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[None, req.ticket, 1, 0, req.operator, req.operation])
-                    return Response('OK', status_code=200, media_type='application/json', background=tasks)
-                elif len(req.ticket) == 24:
-                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[req.ticket, None, 1, 0, req.operator, req.operation])
-                    return Response('OK', status_code=200, media_type='application/json', background=tasks)
-            elif req.operation == 'free':
-                if len(req.ticket) == 11:
-                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[None, req.ticket, 1, 0, req.operator, req.operation])
-                    return Response('OK', status_code=200, media_type='application/json', background=tasks)
-                elif len(req.ticket) == 24:
-                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[req.ticket, None, 1, 1, req.operator, req.operation])
+            if operation == 'enable':
+                if len(number) == 11:
+                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[None, number, 1, 0, operator, operation])
                     return Response(status_code=200, media_type='application/json', background=tasks)
-            elif req.operation == 'disable':
-                if len(req.ticket) == 11:
-                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[None, req.ticket, 0, 0, req.operator, req.operation])
+                elif len(number) == 24:
+                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[number, None, 1, 0, operator, operation])
                     return Response(status_code=200, media_type='application/json', background=tasks)
-                elif len(req.ticket) == 24:
-                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[req.ticket, None, 0, 0, req.operator, req.operation])
+            elif operation == 'free':
+                if len(number) == 11:
+                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[None, number, 1, 0, operator, operation])
+                    return Response(status_code=200, media_type='application/json', background=tasks)
+                elif len(number) == 24:
+                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[number, None, 1, 1, operator, operation])
+                    return Response(status_code=200, media_type='application/json', background=tasks)
+            elif operation == 'disable':
+                if len(number) == 11:
+                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[None, number, 0, 0, operator, operation])
+                    return Response(status_code=200, media_type='application/json', background=tasks)
+                elif len(number) == 24:
+                    tasks.add_task(ws.DBCONNECTOR_WS.callproc, 'wp_ticket_upd', rows=0, values=[number, None, 0, 0, operator, operation])
                     return Response(status_code=200, media_type='application/json', background=tasks)
             else:
                 return Response('FORBIDDEN', status_code=403, media_type='application/json')
