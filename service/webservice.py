@@ -89,7 +89,7 @@ async def startup():
     tasks.append(ws.DBCONNECTOR_WS.connect())
     tasks.append(ws.SOAPCONNECTOR.connect())
     tasks.append(ws.AMQPCONNECTOR.connect())
-    await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks, return_exceptions=True)
     ws.LOGGER.info({'module': name, 'info': 'Started'})
 
 
@@ -100,7 +100,7 @@ async def shutdown():
     tasks.append(ws.DBCONNECTOR_WS.disconnect())
     tasks.append(ws.SOAPCONNECTOR.disconnect())
     tasks.append(ws.AMQPCONNECTOR.disconnect())
-    await asyncio.gather(*tasks)
+    await asyncio.gather(*tasks, return_exceptions=True)
     await ws.LOGGER.warning({'module': name, 'info': 'Webservice is shutting down'})
     await ws.LOGGER.shutdown()
 
