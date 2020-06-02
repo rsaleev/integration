@@ -17,6 +17,7 @@ class PlatesDataMiner:
         self.__eventsignal = None
         self.__eventloop = None
         self.__last_date = None
+        self.name = 'PlateDataMiner'
 
     @property
     def eventloop(self):
@@ -79,9 +80,11 @@ class PlatesDataMiner:
         for c in columns:
             tasks.append(self._process(c, dates))
         await asyncio.gather(*tasks)
+        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
 
     # run until eventsignal will be received
     # update data after midnight
+
     async def _dispatch(self):
         while not self.eventsignal:
             if datetime.now().hour > 0 and datetime.now().hour < 2:

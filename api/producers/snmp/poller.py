@@ -57,7 +57,7 @@ class AsyncSNMPPoller:
         connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
+        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
         await self.__logger.info({"module": self.name, "info": "Started"})
         return self
 

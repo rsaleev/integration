@@ -78,7 +78,7 @@ class PlacesListener:
         connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         # listen for loop2 status and lost ticket payment
-        await self.__amqpconnector.bind('places_signals', ['status.loop2.*'], durable=False)
+        await self.__amqpconnector.bind('places_signals', ['event.loop2.*', 'event.challenged.*'], durable=False)
         pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
@@ -92,17 +92,18 @@ class PlacesListener:
                 warning = self.PlacesWarning('VACANT')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
         await asyncio.gather(*tasks)
+        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
 
     async def _process(self, redelivered, key, data):
         tasks = []
-        if key in ['status.loop2.entry', 'status.loop2.exit']:
+        if key in ['event.entry.loop2', 'event.exit.loop2']:
             check_tasks = []
             check_tasks.append(self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']]))
             check_tasks.append(self.__dbconnector_is.callproc('is_status_get', rows=1, values=[data['device_id'], 'Command']))
             places, command = await asyncio.gather(*check_tasks)
-            if command['ts'] is None or command['statusTS'].timestamp() - data['ts'] > 10:
+            if not command['statusVal'] in ['CHALLENGED_IN', 'CHALLENGED_OUT']:
                 for p in places:
                     if p['areType'] == 1:
                         tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], None, None, p['areId']]))
@@ -114,18 +115,10 @@ class PlacesListener:
                             tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
                     elif p['areType'] == 3:
                         tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[None, None, p['areTotalPark'] - p['areFreePark'], p['areId']]))
-            elif not command['statusTS'] is None and command['statusTS'].timestamp() - data['ts'] < 10:
-                # 1 - commercial
-                # 2 - challenged
-                # 3 - subscription
-                if key == 'status.loop2.entry':
-                    await self.__dbconnector_is.callproc('is_places_decrease_upd', rows=0, values=[2, data['area_id']])
-                elif key == 'status.loop2.exit':
-                    await self.__dbconnector_is.callproc('is_places_increase_upd', rows=0, values=[2, data['area_id']])
             await asyncio.gather(*tasks)
-        elif key == 'command.physchal.in':
+        elif key == 'event.challenged.in':
             await self.__dbconnector_is.callproc('is_places_decrease_upd', rows=0, values=[2, data['area_id']])
-        elif key == 'command.physchal.out':
+        elif key == 'event.challenged.out':
             await self.__dbconnector_is.callproc('is_places_increase_upd', rows=0, values=[2, data['area_id']])
 
     # dispatcher

@@ -52,7 +52,6 @@ class Application:
         await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[device['terId'], device['terAddress'], device['terType'], device_is['description'],
                                                                               ampp_id_mask+device_is['ampp_id'], device_is['ampp_type'], device['terIdArea'],
                                                                               device['terIPV4'], device['terVersion']])
-        imager_enabled = 1 if device_is['barcode_reader_enabled'] else 0
         if device['terType'] in [1, 2]:
             if not device['terJSON'] is None and device['terJSON'] != '':
                 config = json.loads(device['terJSON'])
@@ -64,18 +63,18 @@ class Application:
                         ocr_mode = 'freerun'
                 await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  ocr_mode, device['terCamPhoto1'],
                                                                                       device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
-                                                                                      imager_enabled,
+                                                                                      int(json.loads(device_is['barcode_reader_enabled']))
                                                                                       ])
             else:
                 await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  'unknown', device['terCamPhoto1'],
                                                                                       device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
-                                                                                      imager_enabled,
+                                                                                      int(json.loads(device_is['barcode_reader_enabled']))
                                                                                       ])
 
         elif device['terType'] == 3:
             await self.__dbconnector_is.callproc('is_cashier_ins', rows=0, values=[device['terId'], device_is['cashbox_capacity'], device_is['cashbox_limit'], device_is['uniteller_id'],
                                                                                    device_is['uniteller_ip'], device_is['payonline_id'], device_is['payonline_ip'],
-                                                                                   device_is['barcode_reader_ip'], 1 if device_is['barcode_reader_enabled'] else 0])
+                                                                                   device_is['barcode_reader_ip'], int(json.loads(device_is['barcode_reader_enabled']))])
 
     async def _initialize_statuses(self, devices: list, mapping: dict) -> None:
         tasks = []
@@ -160,7 +159,7 @@ class Application:
         plates_reporting_proc.start()
         self.processes.append(plates_reporting_proc)
         # # log parent process status
-        await self.__dbconnector_is.callproc('is_services_ins', rows=0, values=[self.alias, os.getpid(), 1])
+        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.alias, os.getpid(), 1, datetime.now()])
         cleaning_tasks = []
         cleaning_tasks.append(self.__dbconnector_is.disconnect())
         cleaning_tasks.append(self.__dbconnector_wp.disconnect())

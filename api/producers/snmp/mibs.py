@@ -24,8 +24,8 @@ class SNMPObject:
         self.__ts = datetime
         self.__keyword: str = None
         # default value
-        self.__act_uid: str = "00000000-00000000-00000000-00000000"
-        self.__tra_uid: str = "00000000-00000000-00000000-00000000"
+        self.__act_uid: str = "00000000-0000-0000-0000-000000000000"
+        self.__tra_uid: str = "00000000-0000-0000-0000-000000000000"
 
     @property
     def device_id(self):
