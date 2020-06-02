@@ -77,7 +77,7 @@ class PlatesDataMiner:
         dates = [first_day + timedelta(days=x) for x in range(0, days_interval.days)]
         tasks = []
         for c in columns:
-            tasks.append(await self._process(c, dates))
+            tasks.append(self._process(c, dates))
         await asyncio.gather(*tasks)
 
     # run until eventsignal will be received
