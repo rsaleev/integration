@@ -94,7 +94,7 @@ class PlatesDataMiner:
                     tasks = []
                     for c in columns:
                         tasks.append(self._process(c, dates))
-                        await asyncio.gather(*tasks)
+                    await asyncio.gather(*tasks)
             await asyncio.sleep(3600)
 
     async def _signal_cleanup(self):
