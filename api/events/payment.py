@@ -147,16 +147,14 @@ class PaymentListener:
                 payment_data = await self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['device_id']])
                 if data['value'] == 'ZONE_PAYMENT':
                     tasks.append(self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'],
-                                                                                                  data['device_address'], data['act_uid'], data['value'], payment_data, datetime.now()]))
-                elif data['value'] == 'FINISHED_WITH_SUCCESS' or data['value'] == 'FINISHED_WITH_ISSUES':
-                    tasks.append(self.__dbconnector_is.callproc('is_payment_data_upd', rows=0, values=[data['device_address'], json.dumps(payment_data, default=str)]))
-                    tasks.append(self._process_payment(data))
+                                                                                                  data['device_id'], data['act_uid'], data['value'], payment_data, datetime.now()]))
+                elif data['value'] == 'FINISHED_WITH_SUCCESS' or data['value'] == 'FINISHED_WITH_ISSUES' or data['value'] == 'PAYMENT_CANCELLED':
                     if payment_data['payType'] == 'C':
                         tasks.append(self._process_inventory(data))
                         tasks.append(self._process_money(data))
-                elif data['value'] == 'PAYMENT_CANCELLED':
-                    await self.__dbconnector_is.callproc('is_payment_status_upd', rows=0, values=[data['device_address'], 'PAYMENT_CANCELLED', data['act_uid'], 1])
-            await asyncio.gather(*tasks)
+                        tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.payment.finished'], priority=10))
+                    tasks.append(self.__dbconnector_is.callproc('is_payment_upd', rows=0, values=[data['device_id'], json.dumps(payment_data, default=str), payment_data['payType'], data['value']]))
+                    await asyncio.gather(*tasks)
 
     # dispatcher
     async def _dispatch(self) -> None:
