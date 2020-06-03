@@ -185,7 +185,7 @@ class EntryListener:
             pre_tasks.append(self._get_photo(device['camPhoto2']))
             temp_data, photo3right = await asyncio.gather(*pre_tasks)
             post_tasks = []
-            post_tasks.append(self.__dbconnector_is.callproc('is_loop2_ins', rows=0, values=[data['device_id'], data['act_uid'], data['ts']]))
+            post_tasks.append(self.__dbconnector_is.callproc('is_entry_loop2_ins', rows=0, values=[data['device_id'], data['act_uid'], data['ts']]))
             post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo3right, data['device_id'], device['camPhoto1']]))
             if not temp_data is None:
                 data['tra_uid'] = temp_data['transactionUID']
