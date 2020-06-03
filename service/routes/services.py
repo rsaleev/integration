@@ -33,14 +33,17 @@ async def get_services():
     try:
         services = await ws.DBCONNECTOR_IS.callproc('is_services_get', rows=-1, values=[None, None, None, None, None, None, None, None])
         for s in services:
+            try:
                 s['processes'] = await ws.DBCONNECTOR_IS.callproc(f"{s['serviceName']}_processes_get", rows=-1, values=[None, None, None, None])
-        return Response(json.dumps(services, default=str), status_code=200, media_type='application/json')
+            except:
+                s['processes'] = []
+        data_out = {'modulesServices': services}
+        return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
     except Exception as e:
-
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 
-@router.get('/api/integration/v1/services/{service_name}')
+@router.get('/api/integration/v1/service/{service_name}')
 async def get_service(service_name):
     try:
         service = await ws.DBCONNECTOR_IS.callproc('is_services_get', rows=1, values=[service_name, None])
@@ -51,7 +54,7 @@ async def get_service(service_name):
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Not found'}), status_code=404, media_type='application/json')
 
 
-@router.get('/api/integration/v1/services/{service_name}/{operation}')
+@router.get('/api/integration/v1/service/{service_name}/{operation}')
 async def control_services(service_name, operation):
     tasks = BackgroundTasks()
     try:
