@@ -78,7 +78,7 @@ class PlacesListener:
         connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         # listen for loop2 status and lost ticket payment
-        await self.__amqpconnector.bind('places_signals', ['event.loop2.*', 'event.challenged.*'], durable=False)
+        await self.__amqpconnector.bind('places_signals', ['status.loop2.*', 'event.challenged.*'], durable=False)
         pid = os.getpid()
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
@@ -98,23 +98,19 @@ class PlacesListener:
 
     async def _process(self, redelivered, key, data):
         tasks = []
-        if key in ['event.entry.loop2', 'event.exit.loop2']:
+        if key in ['status.loop2.entry', 'status.loop2.exit'] and data['value'] == 'OCCUPIED':
             check_tasks = []
             check_tasks.append(self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']]))
-            check_tasks.append(self.__dbconnector_is.callproc('is_status_get', rows=1, values=[data['device_id'], 'Command']))
-            places, command = await asyncio.gather(*check_tasks)
-            if not command['statusVal'] in ['CHALLENGED_IN', 'CHALLENGED_OUT']:
-                for p in places:
-                    if p['areType'] == 1:
-                        tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], None, None, p['areId']]))
-                        if p['areId'] == 1 and p['areFreePark'] == 0:
-                            warning = self.PlacesWarning('FULL')
-                            tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
-                        elif p['areId'] == 1 and ['areFreePark'] > 0:
-                            warning = self.PlacesWarning('VACANT')
-                            tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
-                    elif p['areType'] == 3:
-                        tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[None, None, p['areTotalPark'] - p['areFreePark'], p['areId']]))
+            places = await asyncio.gather(*check_tasks)
+            for p in places:
+                if p['areType'] == cs.WS_MAIN_AREA:
+                    tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], None, None, p['areId']]))
+                    if p['areId'] == 1 and p['areFreePark'] == 0:
+                        warning = self.PlacesWarning('FULL')
+                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
+                    elif p['areId'] == 1 and ['areFreePark'] > 0:
+                        warning = self.PlacesWarning('VACANT')
+                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
             await asyncio.gather(*tasks)
         elif key == 'event.challenged.in':
             await self.__dbconnector_is.callproc('is_places_decrease_upd', rows=0, values=[2, data['area_id']])
@@ -139,10 +135,12 @@ class PlacesListener:
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
-        await self.__dbconnector_is.disconnect()
-        await self.__dbconnector_wp.disconnect()
-        await self.__amqpconnector.disconnect()
-        await self.__logger.shutdown()
+        closing_tasks = []
+        closing_tasks.append(self.__dbconnector_is.disconnect())
+        closing_tasks.append(self.__dbconnector_wp.disconnect())
+        closing_tasks.append(self.__amqpconnector.disconnect())
+        closing_tasks.append(self.__logger.shutdown())
+        await asyncio.gather(*closing_tasks, return_exceptions=True)
 
     async def _signal_handler(self, signal):
         # stop while loop coroutine
