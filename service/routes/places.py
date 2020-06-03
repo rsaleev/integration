@@ -60,9 +60,9 @@ async def get_data():
                            'activeTickets': 0
                        },
                        'subscription': {
-                           'totalPlaces': next(d8['totalPlaces'] for d8 in data if d8['areaId'] == area and d8['clientType'] == 3),
-                           'occupiedPlaces': next(d9['occupiedPlaces']for d9 in data if d9['areaId'] == area and d9['clientType'] == 3),
-                           'freePlaces': next(d10['occupiedPlaces']for d10 in data if d10['areaId'] == area and d10['clientType'] == 3),
+                           'totalPlaces': next((d8['totalPlaces'] for d8 in data if d8['areaId'] == area and d8['clientType'] == 3), 0),
+                           'occupiedPlaces': next((d9['occupiedPlaces']for d9 in data if d9['areaId'] == area and d9['clientType'] == 3), 0),
+                           'freePlaces': next((d10['occupiedPlaces']for d10 in data if d10['areaId'] == area and d10['clientType'] == 3), 0),
                            'activeTickets': next((t3['activeTickets'] for t3 in tickets if t3['areaId'] == area and t3['clientType'] == 3), 0)
                        }}
         data_out.append(area_places)
