@@ -99,6 +99,11 @@ class AsyncSNMPReceiver:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2.entry'], priority=10)
                         elif snmp_object.device_type == 2:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.loop2.exit'], priority=10)
+                    elif snmp_object.codename == 'BarrierLoop1Reverse':
+                        if snmp_object.device_type == 1:
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.reverse.entry'], priority=10)
+                        elif snmp_object.device_type == 2:
+                            await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.reverse.exit'], priority=10)
                     elif snmp_object.codename == 'BarrierStatus':
                         if snmp_object.device_type == 1:
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.barrier.entry'], priority=10)
@@ -111,15 +116,15 @@ class AsyncSNMPReceiver:
                     elif snmp_object.codename in ['IOBoard2.Temperatute', 'IOBoard2.Temperature', 'IOBoard3.Temperature']:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.temperature'], priority=9)
                     elif snmp_object.codename in ['Roboticket1', 'TicketPrinter1']:
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets'], priority=9)
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.tickets', 'event.tickets'], priority=9)
                     elif snmp_object.codename in ['FiscalPrinterIssues', 'FiscalPrinterBD']:
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal'], priority=10)
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.fiscal', 'event.fiscal'], priority=10)
                     elif snmp_object.codename == 'NotesReader':
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout'], priority=10)
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payout', 'event.payout'], priority=10)
                     elif snmp_object.codename in ['CoinsHopper1', 'CoinsHopper2', 'CoinsHopper3']:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinhopper'], priority=3)
                     elif snmp_object.codename == 'Coinbox':
-                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinbox'], priority=3)
+                        await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinbox', 'event.coinbox'], priority=3)
                     await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
             await self.__logger.error(e)
