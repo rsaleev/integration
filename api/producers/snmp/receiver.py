@@ -74,7 +74,7 @@ class AsyncSNMPReceiver:
                                 await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.entry'], priority=10)
                             elif snmp_object.device_type == 2:
                                 await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.exit'], priority=10)
-                        if snmp_object.snmpvalue == 'FREE':
+                        elif snmp_object.snmpvalue == 'FREE':
                             if snmp_object.device_type == 1:
                                 await self.__amqpconnector.send(data=snmp_object.data, persistent=True, keys=['status.loop1.entry'], priority=10)
                             elif snmp_object.device_type == 2:
