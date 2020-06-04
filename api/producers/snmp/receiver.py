@@ -41,8 +41,8 @@ class AsyncSNMPReceiver:
         connections_tasks = []
         connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
         connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
-        self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
-        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
+        self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks, return_exceptions=True)
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
 
@@ -50,6 +50,7 @@ class AsyncSNMPReceiver:
         try:
             oid = message.data.varbinds[1].value
             val = message.data.varbinds[2].value
+            print(oid, '=', val)
             # check if valid device or is it unknown
             device = await self.__dbconnector_is.callproc('is_device_get', rows=1, values=[None, None, None, None, host])
             if not device is None:
@@ -127,14 +128,13 @@ class AsyncSNMPReceiver:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.coinbox', 'event.coinbox'], priority=3)
                     await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
         except Exception as e:
-            await self.__logger.error(e)
-            pass
+            await self.__logger.error({'module': self.name, 'exception': repr(e)})
         finally:
             await asyncio.sleep(0.2)
 
     async def _dispatch(self):
         pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
+        # await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         trap_listener = aiosnmp.SnmpV2TrapServer(host=cs.IS_SNMP_RECEIVER_HOST, port=cs.IS_SNMP_RECEIVER_PORT, communities=("public",), handler=self._handler)
         await trap_listener.run()
 

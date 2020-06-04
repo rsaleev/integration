@@ -86,7 +86,7 @@ class PaymentListener:
             tasks.append(self._initialize_inventory(c['terId'], c['cashboxLimit']))
         await asyncio.gather(*tasks)
         pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         await self.__logger.info({'module': self.name, 'msg': 'Started...'})
         return self
 
@@ -159,7 +159,7 @@ class PaymentListener:
     # dispatcher
     async def _dispatch(self) -> None:
         while not self.eventsignal:
-            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             try:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):

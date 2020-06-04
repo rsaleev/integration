@@ -66,7 +66,7 @@ class EntryListener:
         self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.finished', 'command.challenged.in', 'command.manual.open'], durable=True)
         pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         await self.__logger.info({'module': self.name, 'info': 'Started'})
         return self
 
