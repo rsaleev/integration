@@ -118,8 +118,9 @@ class EntryListener:
             if data['value'] == 'OCCUPIED':
                 photo1left = await self._get_photo(device['camPhoto1'])
                 tasks = []
-                tasks.append(self.__dbconnector_is.callproc('is_entry_loop1_ins', rows=0, values=[data['tra_uid'], data['act_uid'], data['device_id'], datetime.now()]))
-                tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[data['tra_uid'], data['act_uid'], photo1left, data['device_id'], device['camPhoto1'], datetime.now()]))
+                tasks.append(self.__dbconnector_is.callproc('is_entry_loop1_ins', rows=0, values=[data['tra_uid'], data['act_uid'], data['device_id'], datetime.fromtimestamp(data['ts'])]))
+                tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[data['tra_uid'], data['act_uid'],
+                                                                                            photo1left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
                 tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop1.occupied'], priority=10))
                 await asyncio.gather(*tasks)
             elif data['value'] == 'FREE':
@@ -143,8 +144,9 @@ class EntryListener:
             if temp_data['transitionType'] != 'CHALLENGED':
                 post_tasks = []
                 post_tasks.append(self.__dbconnector_is.callproc('is_entry_barrier_ins', rows=0, values=[data['device_id'], data['act_uid'], transit_data.get('transitionType', None),
-                                                                                                         json.dumps(transit_data, default=str), data['ts']]))
-                post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo2left, data['device_id'], device['camPhoto1']]))
+                                                                                                         json.dumps(transit_data, default=str), datetime.fromtimestamp(data['ts'])]))
+                post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'],
+                                                                                                 data['act_uid'], photo2left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
                 post_tasks.append(self.__dbconnector_is.callproc('is_plate_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], data['device_id'], plate_image,
                                                                                                  plate_data['confidence'], plate_data['plate'], plate_data['date']]))
                 data['tra_uid'] = temp_data['transactionUID']
@@ -170,7 +172,8 @@ class EntryListener:
                         'transitionTicket': '', 'subscriptionTicket': '', 'transitionType': 'CHALLENGED', 'transitionFine': 0}
         post_tasks = []
         post_tasks.append(self.__dbconnector_is.callproc('is_entry_command_ins', rows=0, values=[data['device_id'], data['act_uid'], json.dumps(transit_data, default=str), data['ts']]))
-        post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo2left, data['device_id'], device['camPhoto1']]))
+        post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'],
+                                                                                         data['act_uid'], photo2left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
         post_tasks.append(self.__dbconnector_is.callproc('is_plate_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], data['device_id'], plate_image,
                                                                                          plate_data['confidence'], plate_data['plate'], plate_data['date']]))
         if not temp_data is None:
@@ -186,7 +189,8 @@ class EntryListener:
             temp_data, photo3right = await asyncio.gather(*pre_tasks)
             post_tasks = []
             post_tasks.append(self.__dbconnector_is.callproc('is_entry_loop2_ins', rows=0, values=[data['device_id'], data['act_uid'], datetime.fromtimestamp(data['ts'])]))
-            post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo3right, data['device_id'], device['camPhoto1']]))
+            post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'],
+                                                                                             data['act_uid'], photo3right, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
             if not temp_data is None:
                 data['tra_uid'] = temp_data['transactionUID']
             post_tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.occupied'], priority=10))
@@ -198,7 +202,7 @@ class EntryListener:
             if not temp_data is None:
                 data['tra_uid'] = temp_data['transactionUID']
             tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10))
-            tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_id'], datetime.now()]))
+            tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_id'], datetime.fromtimestamp(data['ts'])]))
             await asyncio.sleep(0.2)
             await asyncio.gather(*tasks)
 
@@ -224,7 +228,7 @@ class EntryListener:
         post_tasks = []
         if not payment_data is None and int(payment_data['payPaid']) == 2500:
             if not transit_data is None:
-                self.__dbconnector_is.callproc('is_entry_lost_ins', rows=0, values=[data['tra_uid'], data['device_id'], json.dumps(transit_data, default=str), datetime.now()])
+                self.__dbconnector_is.callproc('is_entry_lost_ins', rows=0, values=[data['tra_uid'], data['device_id'], json.dumps(transit_data, default=str), datetime.fromtimestamp(data['ts'])])
         await asyncio.sleep(0.2)
         temp_data = self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_id'], 1])
         if not temp_data is None:
@@ -250,8 +254,8 @@ class EntryListener:
             # possible lost ticket entry
             elif key == 'status.payment.finished':
                 await self._process_lostticket_event(data, device)
-        except:
-            raise
+        except Exception as e:
+            await self.__logger.error({'module':self.name, 'exception':repr(e)})
 
     # dispatcher
     async def _dispatch(self):

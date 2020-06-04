@@ -118,7 +118,7 @@ class ExitListener:
             if data['value'] == 'OCCUPIED':
                 photo1left = await self._get_photo(device['camPhoto1'])
                 tasks = []
-                tasks.append(self.__dbconnector_is.callproc('is_exit_loop1_ins', rows=0, values=[data['tra_uid'], data['act_uid'], data['device_id'], datetime.now()]))
+                tasks.append(self.__dbconnector_is.callproc('is_exit_loop1_ins', rows=0, values=[data['tra_uid'], data['act_uid'], data['device_id'], datetime.fromtimestamp(data['ts'])]))
                 tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[data['tra_uid'], data['act_uid'], photo1left, data['device_id'], device['camPhoto1'], datetime.now()]))
                 tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.exit.loop1.occupied'], priority=10))
                 await asyncio.gather(*tasks)
@@ -143,8 +143,9 @@ class ExitListener:
             if temp_data['transitionType'] != 'CHALLENGED':
                 post_tasks = []
                 post_tasks.append(self.__dbconnector_is.callproc('is_exit_barrier_ins', rows=0, values=[data['device_id'], data['act_uid'], transit_data.get('transitionType', None),
-                                                                                                        json.dumps(transit_data, default=str), data['ts']]))
-                post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo2left, data['device_id'], device['camPhoto1']]))
+                                                                                                        json.dumps(transit_data, default=str), datetime.fromtimestamp(data['ts'])]))
+                post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], 
+                                                                                                 data['act_uid'], photo2left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
                 post_tasks.append(self.__dbconnector_is.callproc('is_plate_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], data['device_id'], plate_image,
                                                                                                  plate_data['confidence'], plate_data['plate'], plate_data['date']]))
                 data['tra_uid'] = temp_data['transactionUID']
@@ -169,8 +170,10 @@ class ExitListener:
                         'transitionPlate': plate_data['plate'], 'transionStatus': 1, 'transitionTariff': -1,
                         'transitionTicket': '', 'subscriptionTicket': '', 'transitionType': 'CHALLENGED', 'transitionFine': 0}
         post_tasks = []
-        post_tasks.append(self.__dbconnector_is.callproc('is_exit_command_ins', rows=0, values=[data['device_id'], data['act_uid'], json.dumps(transit_data, default=str), data['ts']]))
-        post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo2left, data['device_id'], device['camPhoto1']]))
+        post_tasks.append(self.__dbconnector_is.callproc('is_exit_command_ins', rows=0, values=[data['device_id'],
+                                                                                                data['act_uid'], json.dumps(transit_data, default=str), datetime.fromtimestamp(data['ts'])]))
+        post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], 
+                                                                                         data['act_uid'], photo2left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
         post_tasks.append(self.__dbconnector_is.callproc('is_plate_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], data['device_id'], plate_image,
                                                                                          plate_data['confidence'], plate_data['plate'], plate_data['date']]))
         if not temp_data is None:
@@ -186,7 +189,8 @@ class ExitListener:
             temp_data, photo3right = await asyncio.gather(*pre_tasks)
             post_tasks = []
             post_tasks.append(self.__dbconnector_is.callproc('is_exit_loop2_ins', rows=0, values=[data['device_id'], data['act_uid'], data['ts']]))
-            post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'], data['act_uid'], photo3right, data['device_id'], device['camPhoto1']]))
+            post_tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[temp_data['transactionUID'],
+                                                                                             data['act_uid'], photo3right, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
             if not temp_data is None:
                 data['tra_uid'] = temp_data['transactionUID']
             post_tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.exit.loop2.occupied'], priority=10))
@@ -198,14 +202,14 @@ class ExitListener:
             if not temp_data is None:
                 data['tra_uid'] = temp_data['transactionUID']
             tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.exit.loop2.free'], priority=10))
-            tasks.append(self.__dbconnector_is.callproc('is_exit_confirm_upd', rows=0, values=[data['device_id'], datetime.now()]))
+            tasks.append(self.__dbconnector_is.callproc('is_exit_confirm_upd', rows=0, values=[data['device_id'], datetime.fromtimestamp(data['ts'])]))
             await asyncio.sleep(0.2)
             await asyncio.gather(*tasks)
 
     async def _process_reverse_event(self, data, device):
         pre_tasks = []
         pre_tasks.append(self.__dbconnector_wp.callproc('wp_exit_get', rows=1, values=[data['device_id'], int(data['ts'])]))
-        pre_tasks.append(self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_id']]))
+        pre_tasks.append(self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_id'], 0]))
         await asyncio.sleep(0.2)
         transit_data, temp_data = await asyncio.gather(*pre_tasks, return_exceptions=True)
         post_tasks = []
@@ -213,7 +217,7 @@ class ExitListener:
             data['tra_uid'] = temp_data['transactionUID']
         post_tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.exit.loop1.reverse'], priority=10))
         post_tasks.append(self.__dbconnector_is.callproc('is_exit_reverse_ins', rows=0, values=[data['device_id'], data['act_uid'],
-                                                                                                json.dumps(transit_data, default=str),  data['ts']]))
+                                                                                                json.dumps(transit_data, default=str), datetime.fromtimestamp(data['ts'])]))
         await asyncio.gather(*post_tasks)
 
     async def _process(self, redelivered, key, data):
@@ -230,9 +234,8 @@ class ExitListener:
                 await self._process_command_event(data, device)
             elif key == 'status.reverse.exit':
                 await self._process_reverse_event(data, device)
-
-        except:
-            raise
+        except Exception as e:
+            await self.__logger.error({'module': self.name, 'exception': repr(e)})
 
     # dispatcher
     async def _dispatch(self):
