@@ -50,7 +50,6 @@ class AsyncSNMPReceiver:
         try:
             oid = message.data.varbinds[1].value
             val = message.data.varbinds[2].value
-            print(oid, '=', val)
             # check if valid device or is it unknown
             device = await self.__dbconnector_is.callproc('is_device_get', rows=1, values=[None, None, None, None, host])
             if not device is None:
