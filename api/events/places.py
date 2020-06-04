@@ -91,25 +91,22 @@ class PlacesListener:
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
         await asyncio.gather(*tasks)
         pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
 
     async def _process(self, redelivered, key, data):
         tasks = []
         if key in ['status.loop2.entry', 'status.loop2.exit'] and data['value'] == 'OCCUPIED':
-            check_tasks = []
-            check_tasks.append(self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']]))
-            places = await asyncio.gather(*check_tasks)
+            places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']])
             for p in places:
-                if p['areType'] == cs.WS_MAIN_AREA:
-                    tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], None, None, p['areId']]))
-                    if p['areId'] == 1 and p['areFreePark'] == 0:
-                        warning = self.PlacesWarning('FULL')
-                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
-                    elif p['areId'] == 1 and ['areFreePark'] > 0:
-                        warning = self.PlacesWarning('VACANT')
-                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
+                tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], p['areType'], p['areId']]))
+                if p['areId'] == cs.WS_MAIN_AREA and p['areFreePark'] == 0:
+                    warning = self.PlacesWarning('FULL')
+                    tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
+                elif p['areId'] == cs.WS_MAIN_AREA and ['areFreePark'] > 0:
+                    warning = self.PlacesWarning('VACANT')
+                    tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
             await asyncio.gather(*tasks)
         elif key == 'event.challenged.in':
             await self.__dbconnector_is.callproc('is_places_decrease_upd', rows=0, values=[2, data['area_id']])

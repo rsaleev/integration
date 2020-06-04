@@ -80,7 +80,7 @@ class PlatesDataMiner:
         for c in columns:
             tasks.append(self._process(c, dates))
         await asyncio.gather(*tasks)
-        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
+        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
 
     # run until eventsignal will be received
     # update data after midnight

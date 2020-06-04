@@ -159,7 +159,6 @@ class Application:
         plates_reporting_proc.start()
         self.processes.append(plates_reporting_proc)
         # # log parent process status
-        await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.alias, os.getpid(), 1, datetime.now()])
         cleaning_tasks = []
         cleaning_tasks.append(self.__dbconnector_is.disconnect())
         cleaning_tasks.append(self.__dbconnector_wp.disconnect())
