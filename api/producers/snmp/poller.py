@@ -146,7 +146,7 @@ class AsyncSNMPPoller:
                     for oid in oids:
                         tasks.append(self._process(d, oid))
             await asyncio.gather(*tasks)
-            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             await asyncio.sleep(cs.IS_RDBS_POLLING_INTERVAL)
 
     async def _signal_cleanup(self):
