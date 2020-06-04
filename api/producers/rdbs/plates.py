@@ -102,9 +102,11 @@ class PlatesDataMiner:
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
-        await self.__dbconnector_is.disconnect()
-        await self.__dbconnector_wp.disconnect()
-        await self.__logger.shutdown()
+        closing_tasks = []
+        closing_tasks.append(self.__dbconnector_is.disconnect())
+        closing_tasks.append(self.__dbconnector_wp.disconnect())
+        closing_tasks.append(self.__logger.shutdown())
+        await asyncio.gather(*closing_tasks, return_exceptions=True)
 
     async def _signal_handler(self, signal):
         # stop while loop coroutine

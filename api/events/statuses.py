@@ -20,7 +20,7 @@ class StatusListener:
         self.__amqpconnector: object = None
         self.__logger: object = None
         self.__eventloop: object = None
-        self.__eventsignal: bool = None
+        self.__eventsignal = False
         self.name = 'StatusesListener'
 
     @property
@@ -66,8 +66,8 @@ class StatusListener:
 
     # dispatcher
     async def _dispatch(self):
-        self.eventsignal = False
         while not self.eventsignal:
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             await self.__amqpconnector.receive(self._process)
 
     async def _signal_cleanup(self):
@@ -79,7 +79,12 @@ class StatusListener:
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        await self.__amqpconnector.disconnect()
+        await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0, datetime.now()])
+        closing_tasks = []
+        closing_tasks.append(self.__dbconnector_is.disconnect())
+        closing_tasks.append(self.__amqpconnector.disconnect())
+        closing_tasks.append(self.__logger.shutdown())
+        await asyncio.gather(*closing_tasks, return_exceptions=True)
         tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
                  asyncio.tasks.current_task()]
         for t in tasks:

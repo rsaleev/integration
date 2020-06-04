@@ -178,13 +178,13 @@ class AsyncPingPoller:
 
     async def _dispatch(self):
         while not self.eventsignal:
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             try:
                 devices = await self.__dbconnector_is.callproc('is_device_get', rows=-1, values=[None, None, None, None, None])
                 tasks = []
                 for d in devices:
                     tasks.append(self._process(d))
                 await asyncio.gather(*tasks)
-                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
                 await asyncio.sleep(cs.IS_RDBS_POLLING_INTERVAL)
             except asyncio.CancelledError:
                 pass
@@ -202,7 +202,12 @@ class AsyncPingPoller:
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        await self.__amqpconnector.disconnect()
+        await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0, datetime.now()])
+        closing_tasks = []
+        closing_tasks.append(self.__dbconnector_is.disconnect())
+        closing_tasks.append(self.__amqpconnector.disconnect())
+        closing_tasks.append(self.__logger.shutdown())
+        await asyncio.gather(*closing_tasks, return_exceptions=True)        
         tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
                  asyncio.tasks.current_task()]
         for t in tasks:

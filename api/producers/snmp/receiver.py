@@ -139,15 +139,15 @@ class AsyncSNMPReceiver:
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
-        await self.__dbconnector_is.disconnect()
-        await self.__dbconnector_wp.disconnect()
-        await self.__amqpconnector.disconnect()
-        await self.__logger.shutdown()
+        closing_tasks = []
+        closing_tasks.append(self.__dbconnector_is.disconnect())
+        closing_tasks.append(self.__amqpconnector.disconnect())
+        closing_tasks.append(self.__logger.shutdown())
+        await asyncio.gather(*closing_tasks, return_exceptions=True)
 
     async def _signal_handler(self, signal):
         # stop while loop coroutine
         self.eventsignal = True
-        await self.__amqpconnector.disconnect()
         tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
                  asyncio.tasks.current_task()]
         for t in tasks:

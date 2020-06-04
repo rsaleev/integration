@@ -256,7 +256,7 @@ class EntryListener:
     # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
-            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             try:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):
@@ -264,7 +264,7 @@ class EntryListener:
             except asyncio.CancelledError:
                 pass
         else:
-            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0, datetime.now()])
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
