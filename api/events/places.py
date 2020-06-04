@@ -79,8 +79,6 @@ class PlacesListener:
         self.__dbconnector_is, self.__dbconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
         # listen for loop2 status and lost ticket payment
         await self.__amqpconnector.bind('places_signals', ['status.loop2.*', 'event.challenged.*'], durable=False)
-        pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, pid])
         places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[None])
         tasks = []
         for p in places:
@@ -92,6 +90,7 @@ class PlacesListener:
                 warning = self.PlacesWarning('VACANT')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
         await asyncio.gather(*tasks)
+        pid = os.getpid()
         await self.__dbconnector_is.callproc('is_watchdog_ins', rows=0, values=[self.name, os.getpid(), 1, datetime.now()])
         await self.__logger.info({'module': self.name, 'msg': 'Started'})
         return self
