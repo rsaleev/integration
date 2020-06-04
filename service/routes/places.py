@@ -17,7 +17,7 @@ router = APIRouter()
 name = 'ws_data'
 
 
-class dataRequest(BaseModel):
+class DataRequest(BaseModel):
     parking_number: Optional[int] = None
     parking_area: int = 1
     client_free: Optional[int] = None
@@ -29,7 +29,7 @@ class dataRequest(BaseModel):
     error: int = 0
 
 
-class dataResponse(BaseModel):
+class DataResponse(BaseModel):
     parking_area: int
     error: int = 0
 
@@ -69,8 +69,8 @@ async def get_data():
     return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json', background=tasks)
 
 
-@router.post('/api/integration/v1/places', response_model=dataResponse)
-async def upd_data(*, data: dataRequest):
+@router.post('/api/integration/v1/places', response_model=DataResponse)
+async def upd_data(*, data: DataRequest):
     tasks = BackgroundTasks()
     uid = uuid4()
     tasks.add_task(ws.logger.info, {"module": name, "uid": str(uid), "operation": 'Changedata', "request": data.dict(exclude_unset=True)})

@@ -128,7 +128,7 @@ class Application:
         exit_listener = ExitListener()
         exit_listener_proc = Process(target=exit_listener.run, name=exit_listener.name)
         self.processes.append(entry_listener_proc)
-        # exit_listener_proc.start()
+        exit_listener_proc.start()
         # payment listener
         payment_listener = PaymentListener()
         payment_listener_proc = Process(target=payment_listener.run, name=payment_listener.name)
