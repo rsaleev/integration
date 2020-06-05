@@ -10,6 +10,7 @@ import configuration.settings as cs
 import os
 import functools
 from uuid import uuid4
+import re
 
 
 class PaymentListener:
@@ -109,6 +110,20 @@ class PaymentListener:
     async def _process_payment(self, data: dict, payment_data: dict) -> None:
         await self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'],
                                                                                data['device_id'], data['act_uid'], data['value'], payment_data, datetime.now()])
+        if payment_data['payType'] == 'P':
+            receipt_data = await self.__dbconnector_wp.callproc('wp_receipt_get', rows=1, values=[payment_data['paymentUID']])
+            if not receipt_data is None:
+                receipt = receipt_data['recText']
+                card_num_regex = r"Номер карты\S\s\d{1,6}\S{6}\d{4}"
+                card_num_matches = re.search(card_num_regex, receipt, re.MULTILINE)
+                card_num = card_num_matches.group(0)[13:]
+                rrn_regex = r"RRN\S\s\d{1,12}"
+                rrn_matches = re.search(rrn_regex, receipt, re.MULTILINE)
+                rrn = rrn_matches.group(0)[7:]
+                card_name_regex = r"Application\S\s\w{10}"
+                card_name_matches = re.search(card_name_regex, receipt, re.MULTILINE)
+                card_name = card_name_matches.group(0)[13:]
+                await self.__dbconnector_is.callproc('is_payment_data_upd', rows=0, values=[card_name, card_num, rrn])
 
     async def _process_money(self, data: dict) -> None:
         tasks = []
