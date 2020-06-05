@@ -117,10 +117,10 @@ class PaymentListener:
         if wp_cashbox['curTotal'] == is_cashbox['storageLimit']:
             inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'ALMOST_FULL')
             proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        elif wp_cashbox['curTotal'] == is_cashbox['storageCapacity']:
+        elif wp_cashbox['curTotal'] == is_cashbox['storageContent']:
             inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'FULL')
             proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        elif wp_cashbox['curTotal'] != is_cashbox['storageLimit'] and wp_cashbox['curTotal'] != is_cashbox['storageCapacity']:
+        elif wp_cashbox['curTotal'] != is_cashbox['storageLimit'] and wp_cashbox['curTotal'] != is_cashbox['storageContent']:
             inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'OK')
             proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
         await asyncio.gather(*proc_tasks)
@@ -168,10 +168,10 @@ class PaymentListener:
         if wp_cashbox['curTotal'] == is_cashbox['storageLimit']:
             inv_status = self.InventoryWarning(data['device_id'], data['device_address'], data['device_ip'], data['device_type'], data['ampp_id'], data['ampp_type'], 'ALMOST_FULL')
             proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        elif wp_cashbox['curTotal'] == is_cashbox['storageCapacity']:
+        elif wp_cashbox['curTotal'] == is_cashbox['storageContent']:
             inv_status = self.InventoryWarning(data['device_id'], data['device_address'], data['device_ip'], data['device_type'], data['ampp_id'], data['ampp_type'], 'FULL')
             proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        elif wp_cashbox['curTotal'] != is_cashbox['storageLimit'] and wp_cashbox['curTotal'] != is_cashbox['storageCapacity']:
+        elif wp_cashbox['curTotal'] != is_cashbox['storageLimit'] and wp_cashbox['curTotal'] != is_cashbox['storageContent']:
             inv_status = self.InventoryWarning(data['device_id'], data['device_address'], data['device_ip'], data['device_type'], data['ampp_id'], data['ampp_type'], 'OK')
             proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
         await asyncio.gather(*proc_tasks)
