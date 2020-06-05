@@ -200,8 +200,11 @@ class EntryListener:
             # expect that loop2 was passed and session was closed
             temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_id'], 0])
             if not temp_data is None:
-                data['tra_uid'] = temp_data['transactionUID']
-            tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10))
+                if temp_data['transitioType'] != 'CHALLENGED':
+                    data['tra_uid'] = temp_data['transactionUID']
+                    tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10))
+                elif temp_data['transitionType'] == 'CHALLENGED':
+                    tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.challenged.in'], priority=10))
             tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_id'], datetime.fromtimestamp(data['ts'])]))
             await asyncio.sleep(0.2)
             await asyncio.gather(*tasks)
