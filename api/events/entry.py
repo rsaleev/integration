@@ -55,6 +55,30 @@ class EntryListener:
     def eventsignal(self):
         return self.__eventsignal
 
+    class OneShotEvent:
+        def __init__(self, value):
+            self.__codename = 'OneShotEvent'
+            self.__value: str = value
+            self.__device_id = 0
+            self.__device_address = 0
+            self.__device_ip = cs.WS_SERVER_IP
+            self.__device_type = 0
+            self.__ampp_id = int(f'{cs.AMPP_PARKING_ID}01')
+            self.__ampp_type = 1
+            self.__ts = datetime.now().timestamp()
+
+        @property
+        def instance(self):
+            return {'device_id': self.__device_id,
+                    'device_address': self.__device_address,
+                    'device_type': self.__device_type,
+                    'codename': self.__codename,
+                    'value': self.__value,
+                    'ts': self.__ts,
+                    'ampp_id': self.__ampp_id,
+                    'ampp_type': self.__ampp_type,
+                    'device_ip': self.__device_ip}
+
     async def _initialize(self):
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
@@ -202,8 +226,13 @@ class EntryListener:
             if not temp_data is None:
                 if temp_data['transitioType'] != 'CHALLENGED':
                     data['tra_uid'] = temp_data['transactionUID']
+                    event = self.OneShotEvent('OCCASIONAL_IN')
+                    tasks.append(self.__amqpconnector.send(data=event.instance, persistent=True, keys=['event.occasional_in'], priority=10))
                     tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10))
                 elif temp_data['transitionType'] == 'CHALLENGED':
+                    data['tra_uid'] = temp_data['transactionUID']
+                    event = self.OneShotEvent('CHALLENGED_IN')
+                    tasks.append(self.__amqpconnector.send(data=event.instance, persistent=True, keys=['event.occasional_in'], priority=10))
                     tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.challenged.in'], priority=10))
             tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_id'], datetime.fromtimestamp(data['ts'])]))
             await asyncio.sleep(0.2)

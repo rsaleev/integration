@@ -84,10 +84,10 @@ class PlacesListener:
         for p in places:
             tasks.append(self.__dbconnector_is.callproc('is_places_ins', rows=0, values=[p['areId'], p['areFloor'],  p['areTotalPark'], p['areFreePark'], p['areType']]))
             if p['areId'] == cs.WS_MAIN_AREA and p['areFreePark'] == 0:
-                warning = self.PlacesWarning('FULL')
+                warning = self.PlacesWarning('OCCASIONAL_FULL')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=10))
             elif p['areId'] == cs.WS_MAIN_AREA and p['areFreePark'] > 0:
-                warning = self.PlacesWarning('VACANT')
+                warning = self.PlacesWarning('OCCASIONAL_VACANT')
                 tasks.append(self.__amqpconnector.send(data=warning.instance, persistent=True, keys=['status.places'], priority=3))
         await asyncio.gather(*tasks)
         pid = os.getpid()
@@ -96,28 +96,33 @@ class PlacesListener:
         return self
 
     async def _process(self, redelivered, key, data):
-        tasks = []
+        pre_tasks = []
+        post_tasks = []
         if key in ['status.loop2.entry', 'status.loop2.exit'] and data['value'] == 'OCCUPIED':
-            try:
-                places = await self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']])
-                for p in places:
-                    tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], p['areType'], p['areId']]))
-                    if p['areId'] == cs.WS_MAIN_AREA and p['areFreePark'] == 0:
-                        warning = self.PlacesWarning('FULL')
-                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
-                    elif p['areId'] == cs.WS_MAIN_AREA and ['areFreePark'] > 0:
-                        warning = self.PlacesWarning('VACANT')
-                        tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
-            except Exception as e:
+
+            pre_tasks.append(self.__dbconnector_wp.callproc('wp_places_get', rows=-1, values=[data['device_area']]))
+            pre_tasks.append(self.__dbconnector_is.callproc('is_places_get'), rows=-1, values=[data['device_area']])
+            ws_places, is_places = await asyncio.gather(*pre_tasks)
+            for wp in ws_places:
+                post_tasks.append(self.__dbconnector_is.callproc('is_places_upd', rows=0, values=[p['areTotalPark'] - p['areFreePark'], p['areType'], p['areId']]))
+                if wp['areId'] == cs.WS_MAIN_AREA and wp['areFreePark'] == 0:
+                    warning = self.PlacesWarning('OCCASIONAL_FULL')
+                    post_tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
+                elif wp['areId'] == cs.WS_MAIN_AREA and ['areFreePark'] > 0:
+                    warning = self.PlacesWarning('OCCASIONAL_VACANT')
+                    post_tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=3))
                 await self.__logger.error({'module': self.name, 'exception': repr(e)})
-            await asyncio.gather(*tasks)
         elif key == 'event.challenged.in':
             await self.__dbconnector_is.callproc('is_places_decrease_upd', rows=0, values=[2, data['area_id']])
+            free_places = next(ip['freePlaces'] for ip in is_places if ip['clientType'] == 2)
+            if free_places < 0:
+                warning = self.PlacesWarning('CHALLENGED_FULL')
+                post_tasks.append(self.__amqpconnector.send(data=warning, persistent=True, keys=['status.places'], priority=10))
         elif key == 'event.challenged.out':
-            await self.__dbconnector_is.callproc('is_places_increase_upd', rows=0, values=[2, data['area_id']])
+            post_tasks.append(self.__dbconnector_is.callproc('is_places_increase_upd', rows=0, values=[2, data['area_id']]))
+        await asyncio.gather(*post_tasks, return_exceptions=True)
 
     # dispatcher
-
     async def _dispatch(self):
         while not self.eventsignal:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
