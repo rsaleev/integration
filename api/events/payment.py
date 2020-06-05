@@ -92,7 +92,7 @@ class PaymentListener:
         await self.__logger.info({'module': self.name, 'msg': 'Started...'})
         return self
 
-    async def _initialize_inventory(self, device: dict, limit) -> None:
+    async def _initialize_inventory(self, device: dict) -> None:
         inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[device['terId']])
         tasks = []
         for inv in inventories:
