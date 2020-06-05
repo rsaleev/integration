@@ -87,9 +87,9 @@ class AsyncSNMPReceiver:
                         await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.cardtype'], priority=10)
                     elif snmp_object.codename == 'PaymentStatus':
                         if snmp_object.snmpvalue == 'ZONE_PAYMENT':
-                            snmp_object.tra_uid = uuid4()
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.proceeding'], priority=10)
                         elif snmp_object.snmpvalue == 'FINISHED_WITH_SUCCESS' or snmp_object.snmpvalue == 'FINISHED_WITH_ISSUES':
+                            snmp_object.tra_uid = uuid4()
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.finished'], priority=10)
                         elif snmp_object.snmpvalue == 'PAYMENT_CANCELLED':
                             await self.__amqpconnector.send(snmp_object.data, persistent=True, keys=['status.payment.cancelled'], priority=10)

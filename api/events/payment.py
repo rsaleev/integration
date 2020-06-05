@@ -9,6 +9,7 @@ import json
 import configuration.settings as cs
 import os
 import functools
+from uuid import uuid4
 
 
 class PaymentListener:
@@ -105,12 +106,9 @@ class PaymentListener:
             tasks.append(self.__dbconnector_is.callproc('is_money_ins', rows=0, values=[device_id, m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']]))
         await asyncio.gather(*tasks)
 
-    async def _process_payment(self, data: dict) -> None:
-        temp_data = await self.__dbconnector_is.callproc('is_payment_get', rows=1, values=[data['device_id'], 0])
-        if not temp_data is None:
-            temp_data['ampp_id'] = data['ampp_id']
-            temp_data['ampp_type'] = data['ampp_type']
-            await self.__amqpconnector.send(temp_data,  persistent=True, keys=['payment.data'], priority=1)
+    async def _process_payment(self, data: dict, payment_data: dict) -> None:
+        await self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'],
+                                                                               data['device_id'], data['act_uid'], data['value'], payment_data, datetime.now()])
 
     async def _process_money(self, data: dict) -> None:
         tasks = []
@@ -144,19 +142,21 @@ class PaymentListener:
         tasks = []
         if not redelivered:
             if data['codename'] == 'PaymentStatus':
-                payment_data = await self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['device_id']])
-                if data['value'] == 'ZONE_PAYMENT':
-                    tasks.append(self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'],
-                                                                                                  data['device_id'], data['act_uid'], data['value'], payment_data, datetime.now()]))
-                elif data['value'] == 'FINISHED_WITH_SUCCESS' or data['value'] == 'FINISHED_WITH_ISSUES' or data['value'] == 'PAYMENT_CANCELLED':
-                    if payment_data['payType'] == 'C':
-                        tasks.append(self._process_inventory(data))
-                        tasks.append(self._process_money(data))
-                        tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.payment.finished'], priority=10))
-                    tasks.append(self.__dbconnector_is.callproc('is_payment_upd', rows=0, values=[data['device_id'], json.dumps(payment_data, default=str), payment_data['payType'], data['value']]))
-                    await asyncio.gather(*tasks)
+                if data['value'] == 'FINISHED_WITH_SUCCESS' or data['value'] == 'FINISHED_WITH_ISSUES':
+                    try:
+                        payment_data = await self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['device_id']])
+                        if payment_data['payType'] == 'C':
+                            tasks.append(self._process_inventory(data))
+                            tasks.append(self._process_money(data))
+                            tasks.append(self._process_payment(data, payment_data))
+                        elif payment_data['payType'] == 'P':
+                            tasks.append(self._process_payment(data, payment_data))
+                        elif payment_data['payType'] == 'M':
+                            tasks.append(self._process_payment(data, payment_data))
+                        await asyncio.gather(*tasks)
+                    except Exception as e:
+                        await self.__logger.error({'module': self.name, 'exception': repr(e)})
 
-    # dispatcher
     async def _dispatch(self) -> None:
         while not self.eventsignal:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
