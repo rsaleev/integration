@@ -22,6 +22,8 @@ from utils.asynclog import AsyncLogger
 from integration.service import webservice
 from integration.api.producers.rdbs.plates import PlatesDataMiner
 import sys
+from setproctitle import setproctitle
+import sdnotify
 
 
 class Application:
@@ -88,82 +90,89 @@ class Application:
         await asyncio.gather(*tasks)
 
     async def _initialize(self):
-        self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
-        await self.__logger.info('Starting...')
-        connections_tasks = []
-        self.__dbconnector_is = AsyncDBPool(cs.IS_SQL_CNX)
-        self.__dbconnector_wp = AsyncDBPool(cs.WS_SQL_CNX)
-        self.__soapconnector = AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL)
-        connections_tasks.append(self.__dbconnector_is.connect())
-        connections_tasks.append(self.__dbconnector_wp.connect())
-        connections_tasks.append(self.__soapconnector.connect())
-        self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector = await asyncio.gather(*connections_tasks)
-        devices = await self.__dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
-        f = open(cs.MAPPING, 'r')
-        mapping = json.loads(f.read())
-        f.close()
-        tasks = []
-        tasks.append(self._initialize_info())
-        tasks.append(self._initialize_server())
-        for d in devices:
-            tasks.append(self._initialize_device(d, mapping['devices']))
-            tasks.append(self._initialize_statuses(d, mapping['devices']))
-        await asyncio.gather(*tasks)
-        # statuses listener process
-        statuses_listener = StatusListener()
-        statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
-        self.processes.append(statuses_listener_proc)
-        statuses_listener_proc.start()
-        #  places listener
-        places_listener = PlacesListener()
-        places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
-        self.processes.append(places_listener_proc)
-        places_listener_proc.start()
-        # entry listener
-        entry_listener = EntryListener()
-        entry_listener_proc = Process(target=entry_listener.run, name=entry_listener.name)
-        self.processes.append(entry_listener_proc)
-        entry_listener_proc.start()
-        # exit listener
-        exit_listener = ExitListener()
-        exit_listener_proc = Process(target=exit_listener.run, name=exit_listener.name)
-        self.processes.append(entry_listener_proc)
-        exit_listener_proc.start()
-        # payment listener
-        payment_listener = PaymentListener()
-        payment_listener_proc = Process(target=payment_listener.run, name=payment_listener.name)
-        self.processes.append(payment_listener_proc)
-        payment_listener_proc.start()
-        # ping poller process
-        icmp_poller = AsyncPingPoller()
-        icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
-        self.processes.append(icmp_poller_proc)
-        icmp_poller_proc.start()
-        # SNMP poller process
-        snmp_poller = AsyncSNMPPoller()
-        snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
-        self.processes.append(snmp_poller_proc)
-        snmp_poller_proc.start()
-        # SNMP receiver process
-        snmp_receiver = AsyncSNMPReceiver()
-        snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
-        self.processes.append(snmp_receiver_proc)
-        snmp_receiver_proc.start()
-        # webservice
-        webservice_proc = Process(target=webservice.run, name=webservice.name)
-        self.processes.append(webservice_proc)
-        webservice_proc.start()
-        # Reports generators
-        plates_reporting = PlatesDataMiner()
-        plates_reporting_proc = Process(target=plates_reporting.run, name='plates_reporting')
-        plates_reporting_proc.start()
-        self.processes.append(plates_reporting_proc)
-        # # log parent process status
-        cleaning_tasks = []
-        cleaning_tasks.append(self.__dbconnector_is.disconnect())
-        cleaning_tasks.append(self.__dbconnector_wp.disconnect())
-        cleaning_tasks.append(self.__logger.info('Started'))
-        await asyncio.gather(*cleaning_tasks)
+        n = sdnotify.SystemdNotifier()
+        setproctitle('Wisepark Integration')
+        try:
+            self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
+            await self.__logger.info('Starting...')
+            connections_tasks = []
+            self.__dbconnector_is = AsyncDBPool(cs.IS_SQL_CNX)
+            self.__dbconnector_wp = AsyncDBPool(cs.WS_SQL_CNX)
+            self.__soapconnector = AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL)
+            connections_tasks.append(self.__dbconnector_is.connect())
+            connections_tasks.append(self.__dbconnector_wp.connect())
+            connections_tasks.append(self.__soapconnector.connect())
+            self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector = await asyncio.gather(*connections_tasks)
+            devices = await self.__dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
+            f = open(cs.MAPPING, 'r')
+            mapping = json.loads(f.read())
+            f.close()
+            tasks = []
+            tasks.append(self._initialize_info())
+            tasks.append(self._initialize_server())
+            for d in devices:
+                tasks.append(self._initialize_device(d, mapping['devices']))
+                tasks.append(self._initialize_statuses(d, mapping['devices']))
+            await asyncio.gather(*tasks)
+            # statuses listener process
+            statuses_listener = StatusListener()
+            statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
+            self.processes.append(statuses_listener_proc)
+            statuses_listener_proc.start()
+            #  places listener
+            places_listener = PlacesListener()
+            places_listener_proc = Process(target=places_listener.run, name=places_listener.name)
+            self.processes.append(places_listener_proc)
+            places_listener_proc.start()
+            # entry listener
+            entry_listener = EntryListener()
+            entry_listener_proc = Process(target=entry_listener.run, name=entry_listener.name)
+            self.processes.append(entry_listener_proc)
+            entry_listener_proc.start()
+            # exit listener
+            exit_listener = ExitListener()
+            exit_listener_proc = Process(target=exit_listener.run, name=exit_listener.name)
+            self.processes.append(entry_listener_proc)
+            exit_listener_proc.start()
+            # payment listener
+            payment_listener = PaymentListener()
+            payment_listener_proc = Process(target=payment_listener.run, name=payment_listener.name)
+            self.processes.append(payment_listener_proc)
+            payment_listener_proc.start()
+            # ping poller process
+            icmp_poller = AsyncPingPoller()
+            icmp_poller_proc = Process(target=icmp_poller.run, name=icmp_poller.name)
+            self.processes.append(icmp_poller_proc)
+            icmp_poller_proc.start()
+            # SNMP poller process
+            snmp_poller = AsyncSNMPPoller()
+            snmp_poller_proc = Process(target=snmp_poller.run, name=snmp_poller.name)
+            self.processes.append(snmp_poller_proc)
+            snmp_poller_proc.start()
+            # SNMP receiver process
+            snmp_receiver = AsyncSNMPReceiver()
+            snmp_receiver_proc = Process(target=snmp_receiver.run, name=snmp_receiver.name)
+            self.processes.append(snmp_receiver_proc)
+            snmp_receiver_proc.start()
+            # webservice
+            webservice_proc = Process(target=webservice.run, name=webservice.name)
+            self.processes.append(webservice_proc)
+            webservice_proc.start()
+            # Reports generators
+            plates_reporting = PlatesDataMiner()
+            plates_reporting_proc = Process(target=plates_reporting.run, name='plates_reporting')
+            plates_reporting_proc.start()
+            self.processes.append(plates_reporting_proc)
+            # # log parent process status
+            cleaning_tasks = []
+            cleaning_tasks.append(self.__dbconnector_is.disconnect())
+            cleaning_tasks.append(self.__dbconnector_wp.disconnect())
+            cleaning_tasks.append(self.__logger.info('Started'))
+            await asyncio.gather(*cleaning_tasks)
+            n.notify("READY=1")
+        except Exception as e:
+            n.notify("READY=0")
+            raise e
 
     async def _signal_handler(self, signal):
         shutdown_ready = False

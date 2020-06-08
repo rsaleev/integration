@@ -94,36 +94,37 @@ class PaymentListener:
 
     async def _initialize_inventory(self, device: dict) -> None:
         inventories = await self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[device['terId']])
-        tasks = []
-        for inv in inventories:
-            if inv['curChannelId'] == 1:
-                tasks.append(self.__dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
-                                                                                                inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], None]))
-            elif inv['curChannelId'] == 2:
-                tasks.append(self.__dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
-                                                                                                inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], device['cashboxLimit']]))
-        money = await self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[device['terId']])
-        for m in money:
-            tasks.append(self.__dbconnector_is.callproc('is_money_ins', rows=0, values=[device['terId'], m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']]))
-        await asyncio.gather(*tasks)
-        check_tasks = []
-        check_tasks.append(self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[device['terId']]))
-        check_tasks.append(self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[device['terId']]))
-        check_tasks.append(self.__dbconnector_is.callproc('is_inventory_get', rows=-1, values=[device['terId']]))
-        wp_inv, wp_money, is_inv = await asyncio.gather(*check_tasks)
-        wp_cashbox = next(wp_i for wp_i in wp_inv if wp_i['curChannelId'] == 2)
-        is_cashbox = next(is_i for is_i in is_inv if is_i['storageType'] == 2)
-        proc_tasks = []
-        if wp_cashbox['curTotal'] == is_cashbox['storageLimit']:
-            inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'ALMOST_FULL')
-            proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        elif wp_cashbox['curTotal'] == is_cashbox['storageContent']:
-            inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'FULL')
-            proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        elif wp_cashbox['curTotal'] != is_cashbox['storageLimit'] and wp_cashbox['curTotal'] != is_cashbox['storageContent']:
-            inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'OK')
-            proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
-        await asyncio.gather(*proc_tasks)
+        if not inventories is None:
+            tasks = []
+            for inv in inventories:
+                if inv['curChannelId'] == 1:
+                    tasks.append(self.__dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
+                                                                                                    inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], None]))
+                elif inv['curChannelId'] == 2:
+                    tasks.append(self.__dbconnector_is.callproc('is_inventory_ins', rows=0, values=[inv['curTerId'],
+                                                                                                    inv['curChannelId'], inv['curChannelDescr'], inv['curTotal'], device['cashboxLimit']]))
+            money = await self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[device['terId']])
+            for m in money:
+                tasks.append(self.__dbconnector_is.callproc('is_money_ins', rows=0, values=[device['terId'], m['curChannelId'], m['curChannelDescr'], m['curQuantity'], m['curValue']]))
+            await asyncio.gather(*tasks)
+            check_tasks = []
+            check_tasks.append(self.__dbconnector_wp.callproc('wp_inventory_get', rows=-1, values=[device['terId']]))
+            check_tasks.append(self.__dbconnector_wp.callproc('wp_money_get', rows=-1, values=[device['terId']]))
+            check_tasks.append(self.__dbconnector_is.callproc('is_inventory_get', rows=-1, values=[device['terId']]))
+            wp_inv, wp_money, is_inv = await asyncio.gather(*check_tasks)
+            wp_cashbox = next(wp_i for wp_i in wp_inv if wp_i['curChannelId'] == 2)
+            is_cashbox = next(is_i for is_i in is_inv if is_i['storageType'] == 2)
+            proc_tasks = []
+            if wp_cashbox['curTotal'] == is_cashbox['storageLimit']:
+                inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'ALMOST_FULL')
+                proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
+            elif wp_cashbox['curTotal'] == is_cashbox['storageContent']:
+                inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'FULL')
+                proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
+            elif wp_cashbox['curTotal'] != is_cashbox['storageLimit'] and wp_cashbox['curTotal'] != is_cashbox['storageContent']:
+                inv_status = self.InventoryWarning(device['terId'], device['terAddress'], device['terIp'], device['terType'], device['amppId'], device['amppType'], 'OK')
+                proc_tasks.append(self.__amqpconnector.send(inv_status.instance,  persistent=True, keys='status.cashbox', priority=10))
+            await asyncio.gather(*proc_tasks)
 
     async def _process_payment(self, data: dict, payment_data: dict) -> None:
         await self.__dbconnector_is.callproc('is_payment_ins', rows=0, values=[data['tra_uid'],

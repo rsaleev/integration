@@ -142,9 +142,10 @@ class AsyncSNMPPoller:
             for d in devices:
                 if d['terType'] != 0:
                     statuses = await self.__dbconnector_is.callproc('is_status_get', rows=-1, values=[d['terId'], None])
-                    oids = [p.oid for p in polling_mibs if p.codename in [s['stCodename'] for s in statuses]]
-                    for oid in oids:
-                        tasks.append(self._process(d, oid))
+                    if not statuses is None:
+                        oids = [p.oid for p in polling_mibs if p.codename in [s['stCodename'] for s in statuses]]
+                        for oid in oids:
+                            tasks.append(self._process(d, oid))
             await asyncio.gather(*tasks)
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             await asyncio.sleep(cs.IS_RDBS_POLLING_INTERVAL)
