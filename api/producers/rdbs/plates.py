@@ -1,6 +1,7 @@
 from utils.asyncsql import AsyncDBPool
 from datetime import date, timedelta
-import configuration.settings as cs
+#import configuration.settings as cs
+import configuration as cfg
 import json
 from datetime import datetime, timedelta
 import asyncio
@@ -68,14 +69,27 @@ class PlatesDataMiner:
     # replaces results
     async def _initialize(self):
         connection_tasks = []
-        connection_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
-        connection_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+        # connection_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+        # connection_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+        connection_tasks.append(AsyncDBPool(cfg.wp_cnx).connect())
+        connection_tasks.append(AsyncDBPool(cfg.wp_cnx).connect())
         self.__dbconnector_wp, self.__dbconnector_is = await asyncio.gather(*connection_tasks)
-        columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
-        date_today = date.today()
-        first_day = date_today.replace(day=1)
-        days_interval = date_today-first_day
-        dates = [first_day + timedelta(days=x) for x in range(0, days_interval.days)]
+        report_from_dt = datetime
+        report_to_dt = datetime
+        preparation_tasks = []
+        preparation_tasks.append(self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None]))
+        preparation_tasks.append(self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[]))
+        columns, last_report = await asyncio.gather(*preparation_tasks)
+        dates = []
+        if last_report is None:
+            report_to_dt = date.today()
+            report_from_dt = report_to_dt.replace(day=1)
+            days_interval = report_to_dt-report_from_dt
+            dates = [report_from_dt + timedelta(days=x) for x in range(0, days_interval.days)]
+        else:
+            date_today = date.today()
+            days_interval = date_today-last_report['repDate']
+            dates = [last_report['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
         tasks = []
         for c in columns:
             tasks.append(self._process(c, dates))
