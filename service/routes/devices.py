@@ -35,6 +35,8 @@ class DeviceRequestConfig(BaseModel):
     cam_photo_2_ip: Optional[str] = None
     ticket_device: Optional[str] = None
 
+    
+
 
 class DeviceRequstStatus(BaseModel):
     status: str

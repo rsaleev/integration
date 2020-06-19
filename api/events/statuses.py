@@ -10,13 +10,14 @@ import json
 import functools
 import os
 import contextlib
+from setproctitle import setproctitle
 
 
 class StatusListener:
 
     def __init__(self):
         self.__dbconnector_is: object = None
-        self.__dbconnector_wp: object = None
+        self.__dbconnector_ws: object = None
         self.__amqpconnector: object = None
         self.__logger: object = None
         self.__eventloop: object = None
@@ -48,6 +49,7 @@ class StatusListener:
         return self.__eventsignal
 
     async def _initialize(self):
+        setproctitle('integration-statuses')
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({"module": self.name, "info": "Starting..."})
         connections_tasks = []

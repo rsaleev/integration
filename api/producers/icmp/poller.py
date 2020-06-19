@@ -11,6 +11,8 @@ from utils.asyncamqp import AsyncAMQP
 import aioping
 import signal
 import functools
+from setproctitle import setproctitle
+import sys
 
 
 class AsyncPingPoller:
@@ -150,15 +152,21 @@ class AsyncPingPoller:
                     'device_ip': self.device_ip}
 
     async def _initialize(self):
+        setproctitle('integration-icmp-poller')
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
-        connections_tasks = []
-        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
-        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
-        self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
-        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
-        await self.__logger.info({'module': self.name, 'msg': 'Started'})
-        return self
+        try:
+            connections_tasks = []
+            connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+            connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+            self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
+        except Exception as e:
+            await self.__logger.exception({'module': self.name})
+            raise e
+        else:
+            await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
+            await self.__logger.info({'module': self.name, 'msg': 'Started'})
+            return self
 
     async def _process(self, device):
         network_status = self.NetworkStatus()
@@ -207,7 +215,7 @@ class AsyncPingPoller:
         closing_tasks.append(self.__dbconnector_is.disconnect())
         closing_tasks.append(self.__amqpconnector.disconnect())
         closing_tasks.append(self.__logger.shutdown())
-        await asyncio.gather(*closing_tasks, return_exceptions=True)        
+        await asyncio.gather(*closing_tasks, return_exceptions=True)
         tasks = [task for task in asyncio.all_tasks(self.eventloop) if task is not
                  asyncio.tasks.current_task()]
         for t in tasks:
@@ -220,7 +228,7 @@ class AsyncPingPoller:
         except:
             pass
         # close process
-        os._exit(0)
+        sys.exit(0)
 
     def run(self):
         self.eventloop = asyncio.new_event_loop()

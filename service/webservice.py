@@ -18,9 +18,15 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 import secrets
 from datetime import datetime
+from setproctitle import setproctitle
 
 
 name = 'remote'
+
+app = FastAPI(title="Remote management Module",
+              description="Wisepark Monitoring and Remote Management Module",
+              version="0.0.2 BETA", debug=True if cs.IS_WEBSERVICE_LOG_LEVEL == 'debug' else False,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 API_KEY = "thenb!oronaal_lazo57tathethomenasas"
 API_KEY_NAME = "token"
@@ -29,6 +35,7 @@ TIMESTAMP = "ts"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 ts_key_header = APIKeyHeader(name=TIMESTAMP, auto_error=False)
 api_key_cookie = APIKeyCookie(name=API_KEY_NAME, auto_error=False)
+security = HTTPBasic()
 
 
 async def get_api_key(
@@ -48,10 +55,6 @@ async def get_api_key(
             status_code=HTTP_407_PROXY_AUTHENTICATION_REQUIRED, detail="Authentication required"
         )
 
-
-security = HTTPBasic()
-
-
 def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
     correct_username = 'admin'
     correct_password = API_KEY
@@ -62,11 +65,6 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Basic"},
         )
 
-
-app = FastAPI(title="Remote management Module",
-              description="Wisepark Monitoring and Remote Management Module",
-              version="0.0.2 BETA", debug=True if cs.IS_WEBSERVICE_LOG_LEVEL == 'debug' else False,
-              docs_url=None, redoc_url=None, openapi_url=None)
 
 app.include_router(control.router, dependencies=[Depends(get_api_key)])
 app.include_router(data.router, dependencies=[Depends(get_api_key)])
@@ -120,4 +118,5 @@ async def rdbs():
 
 
 def run():
+    setproctitle('integration-webservice')
     uvicorn.run(app=app, host=cs.IS_WEBSERVICE_HOST, port=cs.IS_WEBSERVICE_PORT, workers=cs.IS_WEBSERVICE_WORKERS, log_level=cs.IS_WEBSERVICE_LOG_LEVEL)

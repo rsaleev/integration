@@ -7,17 +7,18 @@ from datetime import datetime, timedelta
 import asyncio
 import signal
 import os
+import sys
 import functools
+from setproctitle import setproctitle
 
 
 class PlatesDataMiner:
     def __init__(self):
-        self.__gates = []
-        self.__dbconnector_wp = None
-        self.__dbconnector_is = None
-        self.__eventsignal = None
+        self.__logger: object = None
+        self.__dbconnector_ws: object = None
+        self.__dbconnector_is: object = None
+        self.__eventsignal = False
         self.__eventloop = None
-        self.__last_date = None
         self.name = 'PlateDataMiner'
 
     @property
@@ -47,7 +48,7 @@ class PlatesDataMiner:
     # subprocessing coroutine for fetching and storing data
     # processes 1 device object and one date
     async def _fetch(self, device: dict, date: datetime):
-        data_out = await self.__dbconnector_wp.callproc('rep_grz', rows=1, values=[device['terId'], date])
+        data_out = await self.__dbconnector_ws.callproc('rep_grz', rows=1, values=[device['terId'], date])
         if data_out is None:
             data_out = {'date': date, 'totalTransits': 0, 'more6symbols': 0, 'less6symbols': 0, 'less6symbols': 0, 'noSymbols': 0, 'accuracy': 0}
         else:
@@ -68,10 +69,12 @@ class PlatesDataMiner:
     # initialization
     # replaces results
     async def _initialize(self):
+        setproctitle('integration-rdbs-poller-plates')
+        self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connection_tasks = []
         connection_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
         connection_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
-        self.__dbconnector_wp, self.__dbconnector_is = await asyncio.gather(*connection_tasks)
+        self.__dbconnector_ws, self.__dbconnector_is = await asyncio.gather(*connection_tasks)
         report_from_dt = datetime
         report_to_dt = datetime
         preparation_tasks = []
@@ -93,30 +96,35 @@ class PlatesDataMiner:
             tasks.append(self._process(c, dates))
         await asyncio.gather(*tasks)
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
+        self.__logger.info({'module': self.name, 'msg': 'Started'})
 
     # run until eventsignal will be received
     # update data after midnight
 
     async def _dispatch(self):
         while not self.eventsignal:
-            if datetime.now().hour > 0 and datetime.now().hour < 2:
-                last_rep = await self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[])
-                if last_rep['repDate'] < date.today():
-                    columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
-                    date_today = date.today()
-                    days_interval = date_today-last_rep['repDate']
-                    dates = [last_rep['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
-                    tasks = []
-                    for c in columns:
-                        tasks.append(self._process(c, dates))
-                    await asyncio.gather(*tasks)
-            await asyncio.sleep(3600)
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, 1, datetime.now()])
+            if datetime.now().hour > 0 and datetime.now().hour < 5:
+                try:
+                    last_rep = await self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[])
+                    if last_rep['repDate'] < date.today():
+                        columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
+                        date_today = date.today()
+                        days_interval = date_today-last_rep['repDate']
+                        dates = [last_rep['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
+                        tasks = []
+                        for c in columns:
+                            tasks.append(self._process(c, dates))
+                        await asyncio.gather(*tasks)
+                except Exception as e:
+                    await self.__logger.exception({'module': self.name})
+            await asyncio.sleep(60)
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
         closing_tasks = []
         closing_tasks.append(self.__dbconnector_is.disconnect())
-        closing_tasks.append(self.__dbconnector_wp.disconnect())
+        closing_tasks.append(self.__dbconnector_ws.disconnect())
         closing_tasks.append(self.__logger.shutdown())
         await asyncio.gather(*closing_tasks, return_exceptions=True)
 
@@ -135,7 +143,7 @@ class PlatesDataMiner:
         except:
             pass
         # close process
-        os._exit(0)
+        sys.exit(0)
 
     def run(self):
         self.eventloop = asyncio.new_event_loop()
