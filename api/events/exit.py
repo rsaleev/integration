@@ -9,6 +9,7 @@ import functools
 import uuid
 import signal
 import os
+import sys
 from utils.asyncsql import AsyncDBPool
 from utils.asynclog import AsyncLogger
 from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
@@ -18,11 +19,12 @@ from datetime import timedelta
 from uuid import uuid4
 import aiohttp
 import base64
+from setproctitle import setproctitle
 
 
 class ExitListener:
     def __init__(self):
-        self.__dbconnector_wp: object = None
+        self.__dbconnector_ws: object = None
         self.__dbconnector_is: object = None
         self.__soapconnector_wp: object = None
         self.__amqpconnector: object = None
@@ -55,37 +57,45 @@ class ExitListener:
     def eventsignal(self):
         return self.__eventsignal
 
-    async def _initialize(self):
+    async def _initialize(self) -> None:
+        setproctitle('integration-exits')
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
-        connections_tasks = []
-        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
-        connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
-        connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
-        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
-        self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
-        await self.__amqpconnector.bind('exit_signals', ['status.*.exit', 'command.challenged.out'], durable=True)
-        pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
-        await self.__logger.info({'module': self.name, 'info': 'Started'})
-        return self
+        try:
+            connections_tasks = []
+            connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+            connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+            connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
+            connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+            self.__dbconnector_is, self.__dbconnector_ws, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
+            await self.__amqpconnector.bind('exit_signals', ['status.*.exit', 'command.challenged.out'], durable=True)
+            pid = os.getpid()
+            await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
+            await self.__logger.info({'module': self.name, 'info': 'Started'})
+            return self
+        except Exception as e:
+            await self.__logger.exception({'module': self.name})
+            raise e
 
     # blocking operation
-
-    async def _get_photo(self, ip):
-        try:
-            async with aiohttp.ClientSession(raise_for_status=True) as session:
-                async with session.get(url=f'http://{ip}/axis-cgi/jpg/image.cgi?camera=1&resolution=1024x768&compression=25', timeout=2) as response:
+    async def _get_photo(self, ip) -> object:
+        # try-except. If IP is valid and timeout wasn't exceeded an object will be returned
+        conn = aiohttp.TCPConnector(force_close=True, ssl=False, enable_cleanup_closed=True, ttl_dns_cache=3600)
+        async with aiohttp.ClientSession(connector=conn) as session:
+            try:
+                async with session.get(url=f'http://{ip}/axis-cgi/jpg/image.cgi?camera=1&resolution=1024x768&compression=25', timeout=2, raise_for_status=True) as response:
                     result_raw = await response.content.read()
                     result = base64.b64encode(result_raw)
                     return result
-        except:
-            return None
+            except:
+                return None
 
     async def _get_plate_image(self, ip):
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
+        # try-except. If IP is valid and timeout wasn't exceeded an object will be returned
+        conn = aiohttp.TCPConnector(force_close=True, ssl=False, enable_cleanup_closed=True, ttl_dns_cache=3600)
+        async with aiohttp.ClientSession(conn) as session:
             try:
-                async with session.get(url=f'http://{ip}/module.php?m=sekuplate&p=getImage&img=/home/root/tmp/last_read.jpg', timeout=2) as response:
+                async with session.get(url=f'http://{ip}/module.php?m=sekuplate&p=getImage&img=/home/root/tmp/last_read.jpg', timeout=2, raise_for_status=True) as response:
                     result_raw = await response.content.read()
                     result = base64.b64encode(result_raw)
                     return result
@@ -93,9 +103,11 @@ class ExitListener:
                 return None
 
     async def _get_plate_data(self, ip, ts):
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
+        # try-except. If IP is valid and timeout wasn't exceeded an object will be returned
+        conn = aiohttp.TCPConnector(force_close=True, ssl=False, enable_cleanup_closed=True, ttl_dns_cache=3600)
+        async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(url=f'http://{ip}/module.php?m=sekuplate&p=letture', timeout=2) as response:
+                async with session.get(url=f'http://{ip}/module.php?m=sekuplate&p=letture', timeout=2, raise_for_status=True) as response:
                     data = await response.content.read()
                     soup = BeautifulSoup(data, 'html.parser')
                     table_dict = {}
@@ -135,7 +147,7 @@ class ExitListener:
         if data['value'] == 'OPENED':
             pre_tasks = []
             pre_tasks.append(self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_id'], 0]))
-            pre_tasks.append(self.__dbconnector_wp.callproc('wp_exit_get', rows=1, values=[data['device_id'], int(data['ts'])]))
+            pre_tasks.append(self.__dbconnector_ws.callproc('wp_exit_get', rows=1, values=[data['device_id'], int(data['ts'])]))
             pre_tasks.append(self._get_photo(device['camPhoto1']))
             pre_tasks.append(self._get_plate_data(device['camPlate'], data['ts']))
             pre_tasks.append(self._get_plate_image(device['camPlate']))
@@ -211,7 +223,7 @@ class ExitListener:
 
     async def _process_reverse_event(self, data, device):
         pre_tasks = []
-        pre_tasks.append(self.__dbconnector_wp.callproc('wp_exit_get', rows=1, values=[data['device_id'], int(data['ts'])]))
+        pre_tasks.append(self.__dbconnector_ws.callproc('wp_exit_get', rows=1, values=[data['device_id'], int(data['ts'])]))
         pre_tasks.append(self.__dbconnector_is.callproc('is_exit_get', rows=1, values=[data['device_id'], 0]))
         await asyncio.sleep(0.2)
         transit_data, temp_data = await asyncio.gather(*pre_tasks, return_exceptions=True)
@@ -238,12 +250,16 @@ class ExitListener:
             elif key == 'status.reverse.exit':
                 await self._process_reverse_event(data, device)
         except Exception as e:
-            await self.__logger.error({'module': self.name, 'exception': repr(e)})
+            try:
+                await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, 1, datetime.now()])
+            except:
+                pass
+            await self.__logger.exception({'module': self.name})
 
     # dispatcher
     async def _dispatch(self):
         while not self.eventsignal:
-            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, 0, datetime.now()])
             try:
                 await self.__amqpconnector.receive(self._process)
             except (ChannelClosed, ChannelInvalidStateError):
@@ -251,13 +267,13 @@ class ExitListener:
             except asyncio.CancelledError:
                 pass
         else:
-            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0, datetime.now()])
+            await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 0, 0, datetime.now()])
 
     async def _signal_cleanup(self):
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
         closing_tasks = []
         closing_tasks.append(self.__dbconnector_is.disconnect())
-        closing_tasks.append(self.__dbconnector_wp.disconnect())
+        closing_tasks.append(self.__dbconnector_ws.disconnect())
         closing_tasks.append(self.__amqpconnector.disconnect())
         closing_tasks.append(self.__logger.shutdown())
         await asyncio.gather(*closing_tasks, return_exceptions=True)
@@ -277,7 +293,7 @@ class ExitListener:
         except:
             pass
         # close process
-        os._exit(0)
+        sys.exit(0)
 
     def run(self):
         # use own event loop
