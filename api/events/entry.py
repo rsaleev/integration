@@ -1,31 +1,32 @@
 
-from bs4 import BeautifulSoup
-from dateutil import parser as dp
 import asyncio
-from datetime import datetime
-import json
 import base64
 import functools
-import uuid
-import signal
+import json
 import os
-from utils.asyncsql import AsyncDBPool
-from utils.asynclog import AsyncLogger
-from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
-from utils.asyncsoap import AsyncSOAP
-import configuration.settings as cs
-from datetime import timedelta
+import signal
+import sys
+import uuid
+from datetime import datetime, timedelta
 from uuid import uuid4
+
 import aiohttp
-import base64
+from bs4 import BeautifulSoup
+from dateutil import parser as dp
+from setproctitle import setproctitle
+
+import configuration.settings as cs
+from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
+from utils.asynclog import AsyncLogger
+from utils.asyncsoap import AsyncSOAP
+from utils.asyncsql import AsyncDBPool
 
 
 class EntryListener:
     def __init__(self):
-        self.__dbconnector_wp: object = None
+        self.__dbconnector_ws: object = None
         self.__dbconnector_is: object = None
-        self.__soapconnector_wp: object = None
-        self.__amqpconnector: object = None
+        self.__amqpconnector_is: object = None
         self.__logger: object = None
         self.__eventloop: object = None
         self.__eventsignal: bool = False
@@ -80,19 +81,25 @@ class EntryListener:
                     'device_ip': self.__device_ip}
 
     async def _initialize(self):
+        setproctitle('integration-entries')
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
-        await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
-        connections_tasks = []
-        connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
-        connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
-        connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
-        connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
-        self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
-        await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.finished', 'command.challenged.in', 'command.manual.open'], durable=True)
-        pid = os.getpid()
-        await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
-        await self.__logger.info({'module': self.name, 'info': 'Started'})
-        return self
+        try:
+            await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
+            connections_tasks = []
+            connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
+            connections_tasks.append(AsyncDBPool(cs.WS_SQL_CNX).connect())
+            connections_tasks.append(AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL).connect())
+            connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
+            self.__dbconnector_is, self.__dbconnector_ws, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
+            await self.__amqpconnector.bind('entry_signals', ['status.*.entry', 'status.payment.finished', 'command.challenged.in', 'command.manual.open'], durable=True)
+            pid = os.getpid()
+            await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
+            await self.__logger.info({'module': self.name, 'info': 'Started'})
+            entry_records = await self.__dbconnector_ws
+            return self
+        except Exception as e:
+            await self.__logger.exception({'module': self.name})
+            raise e
 
     # blocking operation
 
@@ -138,29 +145,26 @@ class EntryListener:
                 return {'confidence': 0, 'plate': None, 'date': datetime.now()}
 
     async def _process_loop1_event(self, data, device):
-        try:
-            if data['value'] == 'OCCUPIED':
-                photo1left = await self._get_photo(device['camPhoto1'])
-                tasks = []
-                tasks.append(self.__dbconnector_is.callproc('is_entry_loop1_ins', rows=0, values=[data['tra_uid'], data['act_uid'], data['device_id'], datetime.fromtimestamp(data['ts'])]))
-                tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[data['tra_uid'], data['act_uid'],
-                                                                                            photo1left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
-                tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop1.occupied'], priority=10))
-                await asyncio.gather(*tasks)
-            elif data['value'] == 'FREE':
-                await asyncio.sleep(0.2)
-                temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_id'], 0])
-                if not temp_data is None:
-                    data['tra_uid'] = temp_data['transactionUID']
-                await self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10)
-        except Exception as e:
-            await self.__logger.error({'module': self.name, 'method': 'loop1_event', 'error': repr(e)})
+        if data['value'] == 'OCCUPIED':
+            photo1left = await self._get_photo(device['camPhoto1'])
+            tasks = []
+            tasks.append(self.__dbconnector_is.callproc('is_entry_loop1_ins', rows=0, values=[data['tra_uid'], data['act_uid'], data['device_id'], datetime.fromtimestamp(data['ts'])]))
+            tasks.append(self.__dbconnector_is.callproc('is_photo_ins', rows=0, values=[data['tra_uid'], data['act_uid'],
+                                                                                        photo1left, data['device_id'], device['camPhoto1'], datetime.fromtimestamp(data['ts'])]))
+            tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop1.occupied'], priority=10))
+            await asyncio.gather(*tasks)
+        elif data['value'] == 'FREE':
+            await asyncio.sleep(0.2)
+            temp_data = await self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_id'], 0])
+            if not temp_data is None:
+                data['tra_uid'] = temp_data['transactionUID']
+            await self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10)
 
     async def _process_barrier_event(self, data, device):
         if data['value'] == 'OPENED':
             pre_tasks = []
             pre_tasks.append(self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_id'], 0]))
-            pre_tasks.append(self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])]))
+            pre_tasks.append(self.__dbconnector_ws.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])]))
             pre_tasks.append(self._get_photo(device['camPhoto1']))
             pre_tasks.append(self._get_plate_data(device['camPlate'], data['ts']))
             pre_tasks.append(self._get_plate_image(device['camPlate']))
@@ -227,12 +231,12 @@ class EntryListener:
                 if temp_data['transitioType'] != 'CHALLENGED':
                     data['tra_uid'] = temp_data['transactionUID']
                     event = self.OneShotEvent('OCCASIONAL_IN')
-                    tasks.append(self.__amqpconnector.send(data=event.instance, persistent=True, keys=['event.occasional_in'], priority=10))
+                    tasks.append(self.__amqpconnector.send(data=event.instance, persistent=True, keys=['event.occasional.in'], priority=10))
                     tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.entry.loop2.free'], priority=10))
                 elif temp_data['transitionType'] == 'CHALLENGED':
                     data['tra_uid'] = temp_data['transactionUID']
                     event = self.OneShotEvent('CHALLENGED_IN')
-                    tasks.append(self.__amqpconnector.send(data=event.instance, persistent=True, keys=['event.occasional_in'], priority=10))
+                    tasks.append(self.__amqpconnector.send(data=event.instance, persistent=True, keys=['event.challenged_in'], priority=10))
                     tasks.append(self.__amqpconnector.send(data=data, persistent=True, keys=['event.challenged.in'], priority=10))
             tasks.append(self.__dbconnector_is.callproc('is_entry_confirm_upd', rows=0, values=[data['device_id'], datetime.fromtimestamp(data['ts'])]))
             await asyncio.sleep(0.2)
@@ -240,7 +244,7 @@ class EntryListener:
 
     async def _process_reverse_event(self, data, device):
         pre_tasks = []
-        pre_tasks.append(self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])]))
+        pre_tasks.append(self.__dbconnector_ws.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])]))
         pre_tasks.append(self.__dbconnector_is.callproc('is_entry_get', rows=1, values=[data['device_id']]))
         await asyncio.sleep(0.2)
         transit_data, temp_data = await asyncio.gather(*pre_tasks, return_exceptions=True)
@@ -254,8 +258,8 @@ class EntryListener:
 
     async def _process_lostticket_event(self, data, device):
         pre_tasks = []
-        pre_tasks.append(self.__dbconnector_wp.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])]))
-        pre_tasks.append(self.__dbconnector_wp.callproc('wp_payment_get', rows=1, values=[data['device_id'], int(data['ts'])]))
+        pre_tasks.append(self.__dbconnector_ws.callproc('wp_entry_get', rows=1, values=[data['device_id'], int(data['ts'])]))
+        pre_tasks.append(self.__dbconnector_ws.callproc('wp_payment_get', rows=1, values=[data['device_id'], int(data['ts'])]))
         transit_data, payment_data = await asyncio.gather(*pre_tasks)
         post_tasks = []
         if not payment_data is None and int(payment_data['payPaid']) == 2500:
@@ -287,7 +291,7 @@ class EntryListener:
             elif key == 'status.payment.finished':
                 await self._process_lostticket_event(data, device)
         except Exception as e:
-            await self.__logger.error({'module':self.name, 'exception':repr(e)})
+            await self.__logger.exception({'module': self.name})
 
     # dispatcher
     async def _dispatch(self):
@@ -295,8 +299,6 @@ class EntryListener:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, datetime.now()])
             try:
                 await self.__amqpconnector.receive(self._process)
-            except (ChannelClosed, ChannelInvalidStateError):
-                pass
             except asyncio.CancelledError:
                 pass
         else:
@@ -306,7 +308,7 @@ class EntryListener:
         await self.__logger.warning({'module': self.name, 'msg': 'Shutting down'})
         closing_tasks = []
         closing_tasks.append(self.__dbconnector_is.disconnect())
-        closing_tasks.append(self.__dbconnector_wp.disconnect())
+        closing_tasks.append(self.__dbconnector_ws.disconnect())
         closing_tasks.append(self.__amqpconnector.disconnect())
         closing_tasks.append(self.__logger.shutdown())
         await asyncio.gather(*closing_tasks, return_exceptions=True)
@@ -325,8 +327,8 @@ class EntryListener:
             self.eventloop.close()
         except:
             pass
-        # close process
-        os._exit(0)
+        # close the forked process
+        sys.exit(0)
 
     def run(self):
         # use own event loop
