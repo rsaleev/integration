@@ -33,7 +33,7 @@ class Application:
         self.devices = []
         self.__logger = None
         self.__dbconnector_is = None
-        self.__dbconnector_wp = None
+        self.__dbconnector_ws = None
         self.__soapconnector = None
         self.eventloop = None
         self.alias = 'integration'
@@ -44,9 +44,9 @@ class Application:
 
     async def _initialize_server(self) -> None:
         ampp_id_mask = int(cs.AMPP_PARKING_ID) * 100
-        service_version = await self.__soapconnector.client.service.GetVersion()
-        await self.__soapconnector.execute('GetVersion')
-        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cs.WS_SERVER_IP, service_version['rVersion']])
+        soap_version = await self.__soapconnector.execute('GetVersion', header=True)
+        db_version = await self.__dbconnector_ws.callproc('wp_dbversion_get', rows=1, values=[])
+        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cs.WS_SERVER_IP, f"{soap_version['rVersion']};{db_version['parDBVersion']}"])
 
     async def _initialize_device(self, device: dict, mapping: list) -> None:
         device_is = next(d for d in mapping if d['ter_id'] == device['terId'])
@@ -91,19 +91,19 @@ class Application:
 
     async def _initialize(self):
         n = sdnotify.SystemdNotifier()
-        setproctitle('Wisepark Integration')
+        setproctitle('integration-main')
         try:
             self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
             await self.__logger.info('Starting...')
             connections_tasks = []
             self.__dbconnector_is = AsyncDBPool(cs.IS_SQL_CNX)
-            self.__dbconnector_wp = AsyncDBPool(cs.WS_SQL_CNX)
+            self.__dbconnector_ws = AsyncDBPool(cs.WS_SQL_CNX)
             self.__soapconnector = AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL)
             connections_tasks.append(self.__dbconnector_is.connect())
-            connections_tasks.append(self.__dbconnector_wp.connect())
+            connections_tasks.append(self.__dbconnector_ws.connect())
             connections_tasks.append(self.__soapconnector.connect())
-            self.__dbconnector_is, self.__dbconnector_wp, self.__soapconnector = await asyncio.gather(*connections_tasks)
-            devices = await self.__dbconnector_wp.callproc('wp_devices_get', rows=-1, values=[])
+            self.__dbconnector_is, self.__dbconnector_ws, self.__soapconnector = await asyncio.gather(*connections_tasks)
+            devices = await self.__dbconnector_ws.callproc('wp_devices_get', rows=-1, values=[])
             f = open(cs.MAPPING, 'r')
             mapping = json.loads(f.read())
             f.close()
@@ -166,13 +166,18 @@ class Application:
             # # log parent process status
             cleaning_tasks = []
             cleaning_tasks.append(self.__dbconnector_is.disconnect())
-            cleaning_tasks.append(self.__dbconnector_wp.disconnect())
+            cleaning_tasks.append(self.__dbconnector_ws.disconnect())
             cleaning_tasks.append(self.__logger.info('Started'))
             await asyncio.gather(*cleaning_tasks)
-            n.notify("READY=1")
+            if all([p.is_alive() for p in self.processes]):
+                n.notify("READY=1")
         except Exception as e:
+            self.__logger.exception({'module': self.module})
             n.notify("READY=0")
-            raise e
+            sys.exit(repr(e))
+
+    class SignalException(Exception):
+        pass
 
     async def _signal_handler(self, signal):
         shutdown_ready = False
@@ -183,7 +188,7 @@ class Application:
             self.eventloop.close()
         except:
             pass
-        os._exit(0)
+        sys.exit(0)
 
     def run(self):
        # use own event loop
@@ -197,7 +202,6 @@ class Application:
         # # try-except statement for signals
         try:
             self.eventloop.run_until_complete(self._initialize())
-            # self.eventloop.run_forever()
         except asyncio.CancelledError:
             pass
 
