@@ -90,7 +90,7 @@ class PlatesDataMiner:
         else:
             date_today = date.today()
             days_interval = date_today-last_report['repDate']
-            dates = [last_report['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
+            dates = [last_report['repDate'] + timedelta(days=x) for x in range(0, days_interval.days)]
         tasks = []
         for c in columns:
             tasks.append(self._process(c, dates))
@@ -111,7 +111,8 @@ class PlatesDataMiner:
                         columns = await self.__dbconnector_is.callproc('is_column_get', rows=-1, values=[None])
                         date_today = date.today()
                         days_interval = date_today-last_rep['repDate']
-                        dates = [last_rep['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
+                        dates = [last_rep['repDate'] + timedelta(days=x) for x in range(0, days_interval.days)]
+                        dates.append(date_today)
                         tasks = []
                         for c in columns:
                             tasks.append(self._process(c, dates))
