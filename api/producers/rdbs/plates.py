@@ -1,15 +1,16 @@
-from utils.asyncsql import AsyncDBPool
-from datetime import date, timedelta
-import configuration.settings as cs
-import configuration as cfg
-import json
-from datetime import datetime, timedelta
 import asyncio
-import signal
-import os
-import sys
 import functools
+import json
+import os
+import signal
+import sys
+from datetime import date, datetime, timedelta
+
+import uvloop
 from setproctitle import setproctitle
+
+import configuration.settings as cs
+from utils.asyncsql import AsyncDBPool
 
 
 class PlatesDataMiner:
@@ -82,15 +83,15 @@ class PlatesDataMiner:
         preparation_tasks.append(self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[]))
         columns, last_report = await asyncio.gather(*preparation_tasks)
         dates = []
-        if last_report is None:
-            report_to_dt = date.today()
-            report_from_dt = report_to_dt.replace(day=1)
+        if last_report is None or last_report['repDate'] is None:
+            report_to_dt = date.today() - timedelta(days=1)
+            report_from_dt = report_to_dt - timedelta(days=30)
             days_interval = report_to_dt-report_from_dt
-            dates = [report_from_dt + timedelta(days=x) for x in range(0, days_interval.days)]
+            dates = [report_from_dt + timedelta(days=x) for x in range(0, days_interval.days+1)]
         else:
             date_today = date.today()
             days_interval = date_today-last_report['repDate']
-            dates = [last_report['repDate'] + timedelta(days=x) for x in range(0, days_interval.days)]
+            dates = [last_report['repDate'] + timedelta(days=x) for x in range(0, days_interval.days+1)]
         tasks = []
         for c in columns:
             tasks.append(self._process(c, dates))
@@ -99,12 +100,11 @@ class PlatesDataMiner:
         self.__logger.info({'module': self.name, 'msg': 'Started'})
 
     # run until eventsignal will be received
-    # update data after midnight
-
+    # update data after midnight until 2 AM
     async def _dispatch(self):
         while not self.eventsignal:
             await self.__dbconnector_is.callproc('is_processes_upd', rows=0, values=[self.name, 1, 1, datetime.now()])
-            if datetime.now().hour > 0 and datetime.now().hour < 5:
+            if datetime.now().hour > 0 and datetime.now().hour < 2:
                 try:
                     last_rep = await self.__dbconnector_is.callproc('rep_plates_last_get', rows=1, values=[])
                     if last_rep['repDate'] < date.today():
@@ -147,6 +147,8 @@ class PlatesDataMiner:
         sys.exit(0)
 
     def run(self):
+        # use own loop
+        uvloop.install()
         self.eventloop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
