@@ -17,7 +17,7 @@ router = APIRouter()
 name = 'webservice_report'
 
 
-@router.get('/api/integration/v1/monitoring/{tbl}')
+@router.get('/monitoring/{tbl}')
 async def get_view(tbl: str):
     tasks = BackgroundTasks()
     try:
@@ -32,7 +32,7 @@ async def get_view(tbl: str):
             return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Forbidden'}), status_code=403, media_type='application/json', background=tasks)
 
 
-@router.get('/api/integration/v1/report/grz')
+@router.get('/report/grz')
 async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
     data = await ws.DBCONNECTOR_IS.callproc('rep_plates_get', rows=-1, values=[ter_id, from_dt, to_dt])
     data = sorted(data, key=lambda x: x['terType'])
@@ -49,7 +49,7 @@ async def get_grz(ter_id: int = None, from_dt: str = None, to_dt: str = None):
     return Response(json.dumps(data_out, default=str), status_code=200, media_type='application/json')
 
 
-@router.get('/api/integration/v1/report/consumables')
+@router.get('/report/consumables')
 async def get_consumables(from_dt: str = None, to_dt=None):
     from_day = None
     from_year = None

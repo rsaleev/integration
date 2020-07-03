@@ -30,6 +30,20 @@ class CommandRequest(BaseModel):
     command_number: int
     device_events_id: Optional[int] = None
 
+    class Config:
+        schema_extra = {
+            'example':
+                {
+                    'type': 'command',
+                    'error': '0',
+                    'date_event': '2020-05-19 14:57:30',
+                    'came_device_id': '1',
+                    'device_ip': '172.16.137.14',
+                    'command_number': '25',
+                    'device_events_id': '1020'
+                }
+        }
+
     @validator('date_event')
     def date_validator(cls, v):
         dt = dp.parse(v)
@@ -38,22 +52,47 @@ class CommandRequest(BaseModel):
 
 class CommandResponse(BaseModel):
     type: str
-    error: int = 0
     device_type: int
     came_device_id: int
     device_events_id: int
     date_event: str
 
-    @validator('date_event', pre=True)
+    @validator('date_event')
     def date_validator(cls, v):
-        return datetime.now().strftime('%d-%m-%Y %H:%M:%S')
+        dt = dp.parse(v)
+        return dt
 
 
-class PlacesResponse(BaseModel):
-    type: "places"
-    parking_number: int
-    date_event: str
-    error: int
+class CommandResponseSuccess(CommandResponse):
+    error: int = 0
+
+    class Config:
+        schema_extra = {
+            'example':
+            {
+                'type': 'command',
+                'error': '0',
+                'date_event': '2020-05-19 14:57:35',
+                        'came_device_id': '1',
+                        'command_number': '25'
+            }
+        }
+
+
+class CommandResponseFailure(CommandResponse):
+    error: int = 1
+
+    class Config:
+        schema_extra = {
+            'example':
+                {
+                    'type': 'command',
+                    'error': '1',
+                    'date_event': '2020-05-19 14:57:35',
+                    'came_device_id': '1',
+                    'command_number': '25'
+                }
+        }
 
 
 class CommandType(Enum):
@@ -78,6 +117,8 @@ class CommandType(Enum):
     @staticmethod
     def list():
         return list(map(lambda c: {'number': c.value, 'description': c.name}, CommandType))
+
+# class for oneshot event
 
 
 class CommandStatus:
@@ -437,8 +478,26 @@ async def challenged_out_simulate(device, request):
     pass
 
 
-@router.post('/api/cmiu/v2/control')
-async def ccom_exec(*, request: CommandRequest):
+@router.post('/control',
+             tags=["Control parking devices"],
+             response_model=CommandResponseSuccess,
+             response_model_exclude_unset=True,
+             responses={
+                 200: {
+                     "model": CommandResponseSuccess,
+                     "description": "Command successfully executed"
+                 },
+                 403: {
+                     "model": CommandResponseFailure,
+                     "description": "Command wasn't executed",
+                 },
+                 407: {
+                     "content": {"application/json": {}},
+                     "description": "Authorization headers were not passed with request"
+                 }
+             },
+             )
+async def com_exec(*, request: CommandRequest):
     uid = uuid4()
     tasks = BackgroundTasks()
     response = CommandResponse(**request.dict())

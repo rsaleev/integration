@@ -1,119 +1,168 @@
 import asyncio
-from pathlib import Path
-import json
-import signal
-import os
-from datetime import datetime
 import functools
+import json
+import os
+import signal
+import sys
+from datetime import datetime
 from multiprocessing import Process
-from utils.asynclog import AsyncLogger
-from utils.asyncsql import AsyncDBPool
-from utils.asyncsoap import AsyncSOAP
+from pathlib import Path
+
+import sdnotify
+import toml
+
+from setproctitle import setproctitle
+
 import configuration.settings as cs
-from integration.api.producers.snmp.poller import AsyncSNMPPoller
-from integration.api.producers.snmp.receiver import AsyncSNMPReceiver
-from integration.api.producers.icmp.poller import AsyncPingPoller
-from integration.api.events.statuses import StatusListener
 from integration.api.events.entry import EntryListener
 from integration.api.events.exit import ExitListener
-from integration.api.events.places import PlacesListener
 from integration.api.events.payment import PaymentListener
-from utils.asynclog import AsyncLogger
-from integration.service import webservice
+from integration.api.events.places import PlacesListener
+from integration.api.events.statuses import StatusListener
+from integration.api.producers.icmp.poller import AsyncPingPoller
 from integration.api.producers.rdbs.plates import PlatesDataMiner
-import sys
-from setproctitle import setproctitle
-import sdnotify
+from integration.api.producers.snmp.poller import AsyncSNMPPoller
+from integration.api.producers.snmp.receiver import AsyncSNMPReceiver
+from integration.service import webservice
+from utils.asynclog import AsyncLogger
+from utils.asyncsoap import AsyncSOAP
+from utils.asyncsql import AsyncDBPool
+from utils.logstash import LogStash
 
 
 class Application:
     def __init__(self):
         self.processes = []
-        self.modules = []
-        self.devices = []
         self.__logger = None
         self.__dbconnector_is = None
         self.__dbconnector_ws = None
-        self.__soapconnector = None
+        self.__soapconnector_ws = None
         self.eventloop = None
-        self.alias = 'integration'
+        self.name = 'integration'
 
-    async def _initialize_info(self) -> None:
-        # await self.__dbconnector_is.callproc('is_info_ins', rows=0, values=[cfg.object_id, cfg.ampp_parking_id, cfg.object_latitude, cfg.object_longitude, cfg.object_address])
-        pass
+    async def _initialize_info(self, settings: dict) -> None:
+        await self.__dbconnector_is.callproc('is_info_ins', rows=0,
+                                             values=[
+                                                 settings['wisepark']['site_id'],  # CAME site ID
+                                                 settings['ampp']['id'],  # AMPP parking ID
+                                                 settings['ampp']['coordinates'][0],  # latitude
+                                                 settings['ampp']['coordinates'][1],  # longitude
+                                                 settings['ampp']['address']  # street name,  street index
+                                             ])
 
-    async def _initialize_server(self) -> None:
-        ampp_id_mask = int(cs.AMPP_PARKING_ID) * 100
-        soap_version = await self.__soapconnector.execute('GetVersion', header=True)
+    async def _initialize_server(self, ampp_id_mask: int, mapping: list, settings: dict) -> None:
+        # iterarate through devices
+        device_is = next(d for d in mapping if d['ter_id'] == 0)
+        # fetch data from SOAP method
+        soap_version = await self.__soapconnector_ws.execute('GetVersion', header=True)
+        # fetch data from RDBS procedure
         db_version = await self.__dbconnector_ws.callproc('wp_dbversion_get', rows=1, values=[])
-        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[0, 0, 0, 'server', ampp_id_mask+1, 1, 1, cs.WS_SERVER_IP, f"{soap_version['rVersion']};{db_version['parDBVersion']}"])
+        # insert collected data in Integration RDBS
+        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[
+            0,  # ID
+            0,  # address
+            0,  # type
+            'server',  # description
+            ampp_id_mask+1,  # default AMPP ID $parking_id + 1
+            device_is['ampp_type'],  # AMPP type
+            1,  # area
+            settings['wisepark']['server_ip'],
+            f"{soap_version['rVersion']};{db_version['parDBVersion']}"  # version of services and version of DB
+        ])
 
-    async def _initialize_device(self, device: dict, mapping: list) -> None:
+    async def _initialize_device(self, ampp_id_mask: int, device: dict, mapping: list) -> None:
         device_is = next(d for d in mapping if d['ter_id'] == device['terId'])
-        ampp_id_mask = int(cs.AMPP_PARKING_ID) * 100
-        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[device['terId'], device['terAddress'], device['terType'], device_is['description'],
-                                                                              ampp_id_mask+device_is['ampp_id'], device_is['ampp_type'], device['terIdArea'],
-                                                                              device['terIPV4'], device['terVersion']])
+        # insert collected data in Integration RDBS
+        await self.__dbconnector_is.callproc('is_device_ins', rows=0, values=[
+            device['terId'],
+            device['terAddress'],
+            device['terType'],
+            device_is['description'],
+            ampp_id_mask+device_is['ampp_id'],
+            device_is['ampp_type'],
+            device['terIdArea'],
+            device['terIPV4'],
+            device['terVersion']
+        ])
+        # column in/out
         if device['terType'] in [1, 2]:
-            if not device['terJSON'] is None and device['terJSON'] != '':
-                config = json.loads(device['terJSON'])
-                ocr_mode = 'unknown'
-                if len(config.items()) > 0:
-                    if config['CameraMode'] == 1:
-                        ocr_mode = 'trigger'
-                    elif config['CameraMode'] == 0:
-                        ocr_mode = 'freerun'
-                await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  ocr_mode, device['terCamPhoto1'],
-                                                                                      device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
-                                                                                      int(json.loads(device_is['barcode_reader_enabled']))
-                                                                                      ])
-            else:
-                await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[device['terId'], device['terCamPlate'],  'unknown', device['terCamPhoto1'],
-                                                                                      device['terCamPhoto2'], device_is['ticket_device'], device_is['barcode_reader_ip'],
-                                                                                      int(json.loads(device_is['barcode_reader_enabled']))
-                                                                                      ])
-
+            # OCR camera mode is stored in column `terJSON` as JSON value {"CameraMode":1}
+            ocr_mode = 'unknown'
+            if not device['terJSON'] is None:
+                stored_value = json.loads(device['terJSON'])
+                if stored_value['CameraMode'] == 1:
+                    ocr_mode = 'trigger'
+                elif stored_value['cameraMode'] == 0:
+                    ocr_mode = 'freerun'
+            await self.__dbconnector_is.callproc('is_column_ins', rows=0, values=[
+                device['terId'],
+                device['terCamPlate'],
+                ocr_mode,
+                device['terCamPhoto1'],
+                device['terCamPhoto2'],
+                device_is['ticket_device'],  # ticket device description
+                device_is['barcode_reader_ip'],  # IP address of custom barcode/UID reader
+                int(device_is['barcode_reader_enabled'])
+            ])
+        # automatic cash
         elif device['terType'] == 3:
-            await self.__dbconnector_is.callproc('is_cashier_ins', rows=0, values=[device['terId'], device_is['cashbox_capacity'], device_is['cashbox_limit'], device_is['uniteller_id'],
-                                                                                   device_is['uniteller_ip'], device_is['payonline_id'], device_is['payonline_ip'],
-                                                                                   device_is['barcode_reader_ip'], int(json.loads(device_is['barcode_reader_enabled']))])
-
-    async def _initialize_statuses(self, devices: list, mapping: dict) -> None:
-        tasks = []
-        for d_is in mapping:
-            if d_is['ter_id'] == 0:
-                for st in d_is['statuses']:
-                    tasks.append(self.__dbconnector_is.callproc('is_status_ins', rows=0, values=[0, st]))
-            if d_is['ter_id'] > 0:
-                for st in d_is['statuses']:
-                    tasks.append(self.__dbconnector_is.callproc('is_status_ins', rows=0, values=[d_is['ter_id'], st]))
-        await asyncio.gather(*tasks)
+            await self.__dbconnector_is.callproc('is_cashier_ins', rows=0, values=[
+                device['terId'],
+                device_is['cashbox_capacity'],
+                device_is['cashbox_limit'],
+                device_is['uniteller_id'],
+                device_is['uniteller_ip'],
+                device_is['payonline_id'],
+                device_is['payonline_ip'],
+                device_is['barcode_reader_ip'],
+                int(json.loads(device_is['barcode_reader_enabled']))
+            ])
 
     async def _initialize(self):
+        # # Python systemctl-daemon Python wrapper
         n = sdnotify.SystemdNotifier()
-        setproctitle('integration-main')
+        # define custom process title
+        setproctitle('is-main')
+        config = toml.load(cs.CONFIG_FILE)
+        self.__logger = AsyncLogger(f'{cs.LOG_PATH}/integration.log').getlogger()
+        self.__dbconnector_is = AsyncDBPool(host=config['integration']['rdbs']['host'],
+                                            port=config['integration']['rdbs']['port'],
+                                            login=config['integration']['rdbs']['login'],
+                                            password=config['integration']['rdbs']['password'],
+                                            database=config['integration']['rdbs']['database'])
+        self.__dbconnector_ws = AsyncDBPool(host=config['wisepark']['rdbs']['host'],
+                                            port=config['wisepark']['rdbs']['port'],
+                                            login=config['wisepark']['rdbs']['login'],
+                                            password=config['wisepark']['rdbs']['password'],
+                                            database=config['wisepark']['rdbs']['database'])
+        self.__soapconnector_ws = AsyncSOAP(login=config['wisepark']['soap']['login'],
+                                            password=config['wisepark']['soap']['password'],
+                                            url=config['wisepark']['soap']['url'],
+                                            timeout=config['wisepark']['soap']['timeout'])
         try:
-            self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
+            self.__logger = self.__logger.getlogger()
             await self.__logger.info('Starting...')
+            # connect to RDBS and SOAP servers
             connections_tasks = []
-            self.__dbconnector_is = AsyncDBPool(cs.IS_SQL_CNX)
-            self.__dbconnector_ws = AsyncDBPool(cs.WS_SQL_CNX)
-            self.__soapconnector = AsyncSOAP(cs.WS_SOAP_USER, cs.WS_SOAP_PASSWORD, cs.WS_SERVER_ID, cs.WS_SOAP_TIMEOUT, cs.WS_SOAP_URL)
             connections_tasks.append(self.__dbconnector_is.connect())
             connections_tasks.append(self.__dbconnector_ws.connect())
-            connections_tasks.append(self.__soapconnector.connect())
-            self.__dbconnector_is, self.__dbconnector_ws, self.__soapconnector = await asyncio.gather(*connections_tasks)
-            devices = await self.__dbconnector_ws.callproc('wp_devices_get', rows=-1, values=[])
-            f = open(cs.MAPPING, 'r')
-            mapping = json.loads(f.read())
-            f.close()
+            connections_tasks.append(self.__soapconnector_ws.connect())
+            await asyncio.gather(*connections_tasks)
+            # load configuration
+            # load devices settings
+            devices_settings = toml.load(cs.DEVICES_FILE)
+            # generate list of devices
+            devices_mapping = [devices_settings['devices'].get(d) for d in devices_settings['devices']]
+            # fetch devices configuration from wisepark DB
+            devices_wisepark = await self.__dbconnector_ws.callproc('wp_devices_get', rows=-1, values=[])
             tasks = []
-            tasks.append(self._initialize_info())
-            tasks.append(self._initialize_server())
-            for d in devices:
-                tasks.append(self._initialize_device(d, mapping['devices']))
-                tasks.append(self._initialize_statuses(d, mapping['devices']))
+            ampp_mask = config['ampp']['id']*100
+            tasks.append(self._initialize_info(config))
+            tasks.append(self._initialize_server(ampp_mask, devices_mapping, config))
+            for d in devices_wisepark:
+                tasks.append(self._initialize_device(ampp_mask, d, devices_mapping))
             await asyncio.gather(*tasks)
+            # initialize instances, convert to processes and start child processes
             # statuses listener process
             statuses_listener = StatusListener()
             statuses_listener_proc = Process(target=statuses_listener.run, name=statuses_listener.name)
@@ -158,29 +207,26 @@ class Application:
             webservice_proc = Process(target=webservice.run, name=webservice.name)
             self.processes.append(webservice_proc)
             webservice_proc.start()
-            # Reports generators
-            plates_reporting = PlatesDataMiner()
-            plates_reporting_proc = Process(target=plates_reporting.run, name='plates_reporting')
-            plates_reporting_proc.start()
-            self.processes.append(plates_reporting_proc)
-            # # log parent process status
+            # log stashing
+            logs_stash = LogStash(cs.LOG_PATH)
+            log_stash_proc = Process(target=logs_stash.run, name='log_stash')
+            self.processes.append(log_stash_proc)
+            # perform cleaning
             cleaning_tasks = []
             cleaning_tasks.append(self.__dbconnector_is.disconnect())
             cleaning_tasks.append(self.__dbconnector_ws.disconnect())
+            cleaning_tasks.append(self.__soapconnector_ws.disconnect())
             cleaning_tasks.append(self.__logger.info('Started'))
             await asyncio.gather(*cleaning_tasks)
             if all([p.is_alive() for p in self.processes]):
                 n.notify("READY=1")
         except Exception as e:
-            self.__logger.exception({'module': self.module})
+            self.__logger.exception({'module': self.name})
             n.notify("READY=0")
             sys.exit(repr(e))
 
-    class SignalException(Exception):
-        pass
-
+    # signals handler
     async def _signal_handler(self, signal):
-        shutdown_ready = False
         for p in self.processes:
             p.terminate()
         try:
@@ -191,7 +237,7 @@ class Application:
         sys.exit(0)
 
     def run(self):
-       # use own event loop
+        # use own event loop
         self.eventloop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)

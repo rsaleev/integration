@@ -1,7 +1,7 @@
 from fastapi.routing import APIRouter
 from fastapi import Query
 import configuration as cfg
-from service import settings as ws
+from integration.service import settings as ws
 from starlette.responses import Response
 from starlette.background import BackgroundTasks
 from pydantic import BaseModel, validator, ValidationError
@@ -31,3 +31,4 @@ async def get_devices_status(source, rows: int = 10, level: str = None, from_dat
             return Response(json.dumps({'error': 'INTERNAL_ERROR', 'comment': repr(e)}, default=str), status_code=500, media_type='application/json', background=tasks)
     else:
         return Response(json.dumps({'error': 'BAD_REQUEST', 'comment': 'Wrong parameter'}, default=str), status_code=500, media_type='application/json', background=tasks)
+

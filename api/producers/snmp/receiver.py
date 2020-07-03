@@ -1,18 +1,22 @@
 
 import asyncio
-import aiosnmp
-from datetime import datetime
-import json
-import configuration.settings as cs
-from .mibs import receiving_mibs
-from utils.asynclog import AsyncLogger
-from utils.asyncamqp import AsyncAMQP
-from utils.asyncsql import AsyncDBPool
-from uuid import uuid4
-import signal
-import os
 import functools
+import json
+import os
+import signal
+from datetime import datetime
+from uuid import uuid4
+
+import aiosnmp
+import uvloop
 from setproctitle import setproctitle
+
+import configuration.settings as cs
+from utils.asyncamqp import AsyncAMQP
+from utils.asynclog import AsyncLogger
+from utils.asyncsql import AsyncDBPool
+
+from integration.api.producers.snmp.mibs import receiving_mibs
 
 
 class AsyncSNMPReceiver:
@@ -134,7 +138,8 @@ class AsyncSNMPReceiver:
             await asyncio.sleep(0.2)
 
     async def _dispatch(self):
-        pid = os.getpid()
+        # TODO: notify about server status 
+        #pid = os.getpid()
         # await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         trap_listener = aiosnmp.SnmpV2TrapServer(host=cs.IS_SNMP_RECEIVER_HOST, port=cs.IS_SNMP_RECEIVER_PORT, communities=("public",), handler=self._handler)
         await trap_listener.run()
@@ -165,9 +170,9 @@ class AsyncSNMPReceiver:
         os._exit(0)
 
     def run(self):
-        policy = asyncio.get_event_loop_policy()
-        policy.set_event_loop(policy.new_event_loop())
-        self.eventloop = asyncio.get_event_loop()
+        uvloop.install()
+        self.eventloop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.eventloop)
         # define signals
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
         # add signal handler to loop

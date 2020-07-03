@@ -1,16 +1,20 @@
-from datetime import datetime
 import asyncio
-import signal
-from dataclasses import dataclass
-from utils.asyncsql import AsyncDBPool
-from utils.asynclog import AsyncLogger
-from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
-import configuration.settings as cs
-import json
-import functools
-import os
 import contextlib
+import functools
+import json
+import os
+import signal
+import sys
+from dataclasses import dataclass
+from datetime import datetime
+
+import uvloop
 from setproctitle import setproctitle
+
+import configuration.settings as cs
+from utils.asyncamqp import AsyncAMQP, ChannelClosed, ChannelInvalidStateError
+from utils.asynclog import AsyncLogger
+from utils.asyncsql import AsyncDBPool
 
 
 class StatusListener:
@@ -57,6 +61,18 @@ class StatusListener:
         connections_tasks.append(AsyncDBPool(cs.IS_SQL_CNX).connect())
         self.__amqpconnector, self.__dbconnector_is = await asyncio.gather(*connections_tasks)
         await self.__amqpconnector.bind('statuses', ['status.*', 'command.*.*'], durable=True)
+        f = open(cs.MAPPING, 'r')
+        mapping = json.loads(f.read())
+        f.close()
+        tasks = []
+        for d_is in mapping['devices']:
+            if d_is['ter_id'] == 0:
+                for st in d_is['statuses']:
+                    tasks.append(self.__dbconnector_is.callproc('is_status_ins', rows=0, values=[0, st]))
+            if d_is['ter_id'] > 0:
+                for st in d_is['statuses']:
+                    tasks.append(self.__dbconnector_is.callproc('is_status_ins', rows=0, values=[d_is['ter_id'], st]))
+        await asyncio.gather(*tasks)
         await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
         await self.__logger.info({"module": self.name, "info": "Started"})
         return self
@@ -99,9 +115,12 @@ class StatusListener:
         except:
             pass
         # close process
-        os._exit(0)
+        sys.exit(0)
 
     def run(self):
+        # use policy for own event loop
+
+        uvloop.install()
         self.eventloop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)

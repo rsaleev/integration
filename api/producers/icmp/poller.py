@@ -13,6 +13,7 @@ import signal
 import functools
 from setproctitle import setproctitle
 import sys
+import uvloop
 
 
 class AsyncPingPoller:
@@ -231,6 +232,8 @@ class AsyncPingPoller:
         sys.exit(0)
 
     def run(self):
+        # use own event loop
+        uvloop.install()
         self.eventloop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)

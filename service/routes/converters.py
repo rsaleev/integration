@@ -48,7 +48,7 @@ class Card(BaseModel):
     error: Optional[dict]
 
 
-@router.get('/api/integration/v1/converters/troika/num/{num}')
+@router.get('/converters/troika/num/{num}', tags=['Converters'])
 async def troika_num(num):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
                                             capath=cs.METRO_CERT_PATH)
@@ -66,7 +66,7 @@ async def troika_num(num):
                     data_out = {}
                     data_out['cardUid'] = data.card['uid']
                     data_out['cardNum'] = data.card['num']
-                    data_out['cameCode'] = await troika_convert(data.card['uid'])
+                    data_out['cameCode'] = await convert(data.card['uid'])
                     data_out['cardStatus'] = data.card['status']
                     return JSONResponse(data_out)
                 elif r.status == 400:
@@ -79,7 +79,10 @@ async def troika_num(num):
             return JSONResponse({'error': repr(e)})
 
 
-@router.get('/api/integration/v1/converters/troika/uid/{uid}')
+@router.get('/converters/troika/uid/{uid}',
+            tags=['Converters'],
+            description='Convert Troika UID to CAME code', 
+            )
 async def troika_uid(uid):
     sslcontext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH,
                                             capath=cs.METRO_CERT_PATH)
@@ -97,7 +100,7 @@ async def troika_uid(uid):
                     data_out = {}
                     data_out['cardUid'] = data.card['uid']
                     data_out['cardNum'] = data.card['num']
-                    data_out['cameCode'] = await troika_convert(data.card['uid'])
+                    data_out['cameCode'] = await convert(data.card['uid'])
                     data_out['cardStatus'] = data.card['status']
                     return JSONResponse(data_out)
                 elif r.status == 400:
@@ -110,7 +113,7 @@ async def troika_uid(uid):
             return JSONResponse({'error': repr(e)})
 
 
-@router.get('/api/integration/v1/converters/mifare/uid/{uid}')
+@router.get('/converters/mifare/uid/{uid}')
 async def mifare_uid(uid):
     try:
         data_out = {}

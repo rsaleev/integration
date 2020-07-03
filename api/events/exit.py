@@ -20,6 +20,7 @@ from uuid import uuid4
 import aiohttp
 import base64
 from setproctitle import setproctitle
+import uvloop
 
 
 class ExitListener:
@@ -58,7 +59,7 @@ class ExitListener:
         return self.__eventsignal
 
     async def _initialize(self) -> None:
-        setproctitle('integration-exits')
+        setproctitle('is-exits')
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'info': 'Statrting...'})
         try:
@@ -69,7 +70,6 @@ class ExitListener:
             connections_tasks.append(AsyncAMQP(cs.IS_AMQP_USER, cs.IS_AMQP_PASSWORD, cs.IS_AMQP_HOST, exchange_name='integration', exchange_type='topic').connect())
             self.__dbconnector_is, self.__dbconnector_ws, self.__soapconnector_wp, self.__amqpconnector = await asyncio.gather(*connections_tasks)
             await self.__amqpconnector.bind('exit_signals', ['status.*.exit', 'command.challenged.out'], durable=True)
-            pid = os.getpid()
             await self.__dbconnector_is.callproc('is_processes_ins', rows=0, values=[self.name, 1, os.getpid(), datetime.now()])
             await self.__logger.info({'module': self.name, 'info': 'Started'})
             return self
@@ -77,7 +77,6 @@ class ExitListener:
             await self.__logger.exception({'module': self.name})
             raise e
 
-    # blocking operation
     async def _get_photo(self, ip) -> object:
         # try-except. If IP is valid and timeout wasn't exceeded an object will be returned
         conn = aiohttp.TCPConnector(force_close=True, ssl=False, enable_cleanup_closed=True, ttl_dns_cache=3600)
@@ -105,7 +104,7 @@ class ExitListener:
     async def _get_plate_data(self, ip, ts):
         # try-except. If IP is valid and timeout wasn't exceeded an object will be returned
         conn = aiohttp.TCPConnector(force_close=True, ssl=False, enable_cleanup_closed=True, ttl_dns_cache=3600)
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=conn) as session:
             try:
                 async with session.get(url=f'http://{ip}/module.php?m=sekuplate&p=letture', timeout=2, raise_for_status=True) as response:
                     data = await response.content.read()
@@ -297,6 +296,7 @@ class ExitListener:
 
     def run(self):
         # use own event loop
+        uvloop.install()
         self.eventloop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)

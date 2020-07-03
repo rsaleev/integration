@@ -1,93 +1,78 @@
-import hashlib
 import asyncio
-from uuid import uuid4
 import json
+from datetime import datetime, timedelta
+from uuid import uuid4
+
+import toml
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException, Security, Header
-from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN, HTTP_407_PROXY_AUTHENTICATION_REQUIRED
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from starlette.responses import Response, JSONResponse, PlainTextResponse
-from starlette.requests import Request
-from starlette.background import BackgroundTask, BackgroundTasks
-from integration.service.routes import control, data, logs, places, services, devices, subscription, ticket, converters, parkconfig
-import configuration.settings as cs
-from integration.service import settings as ws
-import nest_asyncio
-from fastapi.security.api_key import APIKeyHeader, APIKey, APIKeyCookie
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-import secrets
-from datetime import datetime
 from setproctitle import setproctitle
+from starlette.background import BackgroundTask, BackgroundTasks
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse, Response
 
+
+from integration.service.routes import control, data, logs, places, services, devices, subscription, ticket, converters, parkconfig
+
+import integration.service.security as iss
+import configuration.settings as cs
+import integration.service.settings as ws
 
 name = 'remote'
 
-app = FastAPI(title="Remote management Module",
-              description="Wisepark Monitoring and Remote Management Module",
-              version="0.0.2 BETA", debug=True if cs.IS_WEBSERVICE_LOG_LEVEL == 'debug' else False,
-              docs_url=None, redoc_url=None, openapi_url=None)
+configuration = toml.load(cs.CONFIG_FILE)
 
-API_KEY = "thenb!oronaal_lazo57tathethomenasas"
-API_KEY_NAME = "token"
-TIMESTAMP = "ts"
+app = FastAPI(title="Integration Module",
+              description="Wisepark Monitoring and Remote Management Module OpenApi schema",
+              version="0.0.2 BETA",
+              debug=True,
+              # root_path="",
+              openapi_url=None,
+              docs_url=None)
 
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-ts_key_header = APIKeyHeader(name=TIMESTAMP, auto_error=False)
-api_key_cookie = APIKeyCookie(name=API_KEY_NAME, auto_error=False)
-security = HTTPBasic()
-
-
-async def get_api_key(
-    api_key_header: str = Security(api_key_header),
-    ts_key_header: str = Security(ts_key_header),
-):
-    if api_key_header:
-        secret = hashlib.sha256(f"{ts_key_header}{API_KEY}".encode()).hexdigest()
-        if api_key_header != secret or int(datetime.now().timestamp()) - int(ts_key_header) > 5:
-            raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN, detail="Unauthorized"
-            )
-        else:
-            return api_key_header
-    else:
-        raise HTTPException(
-            status_code=HTTP_407_PROXY_AUTHENTICATION_REQUIRED, detail="Authentication required"
-        )
-
-def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = 'admin'
-    correct_password = API_KEY
-    if not (correct_username and correct_password):
-        raise HTTPException(
-            status_code=HTTP_401_UNAUTHORIZED,
-            detail="Incorrect credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+app.include_router(control.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(data.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(logs.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(places.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(services.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(devices.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(subscription.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(ticket.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(converters.router, dependencies=[Depends(iss.get_api_key)])
+app.include_router(parkconfig.router, dependencies=[Depends(iss.get_api_key)])
 
 
-app.include_router(control.router, dependencies=[Depends(get_api_key)])
-app.include_router(data.router, dependencies=[Depends(get_api_key)])
-app.include_router(logs.router, dependencies=[Depends(get_api_key)])
-app.include_router(places.router, dependencies=[Depends(get_api_key)])
-app.include_router(services.router, dependencies=[Depends(get_api_key)])
-app.include_router(devices.router, dependencies=[Depends(get_api_key)])
-app.include_router(subscription.router, dependencies=[Depends(get_api_key)])
-app.include_router(ticket.router, dependencies=[Depends(get_api_key)])
-app.include_router(converters.router, dependencies=[Depends(get_api_key)])
-app.include_router(parkconfig.router, dependencies=[Depends(get_api_key)])
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="Custom title",
+        version="2.5.0",
+        description="This is a very custom OpenAPI schema",
+        routes=app.routes
+    )
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 
 @app.on_event('startup')
 async def startup():
-    ws.LOGGER = await ws.LOGGER.getlogger(cs.IS_LOG)
+    ws.LOGGER = await ws.LOGGER.getlogger()
     ws.LOGGER.info({'module': name, 'info': 'Starting'})
     tasks = []
     tasks.append(ws.DBCONNECTOR_IS.connect())
     tasks.append(ws.DBCONNECTOR_WS.connect())
     tasks.append(ws.SOAPCONNECTOR.connect())
     tasks.append(ws.AMQPCONNECTOR.connect())
-    await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        print(e)
     ws.LOGGER.info({'module': name, 'info': 'Started'})
 
 
@@ -98,25 +83,32 @@ async def shutdown():
     tasks.append(ws.DBCONNECTOR_WS.disconnect())
     tasks.append(ws.SOAPCONNECTOR.disconnect())
     tasks.append(ws.AMQPCONNECTOR.disconnect())
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks)
     await ws.LOGGER.warning({'module': name, 'info': 'Webservice is shutting down'})
     await ws.LOGGER.shutdown()
+    print('closed')
 
 
-@app.get('/')
+@app.get("/")
 async def homepage():
-    return {'title': app.title,
-            'description': app.description,
-            'version': app.version}
+    return "Welcome to the security test!"
 
 
-@app.get('/status')
-async def rdbs():
-    return {'Wisepark RDBS Connection': ws.DBCONNECTOR_WS.connected,
-            'Integration RDBS Connection': ws.DBCONNECTOR_IS.connected,
-            'Wisepark SOAP Connection': ws.SOAPCONNECTOR.connected}
+@app.get("/openapi.json")
+async def get_open_api_endpoint():
+    return JSONResponse(get_openapi(title="FastAPI", version=1, routes=app.routes))
+
+
+@app.get("/docs")
+async def get_documentation():
+    return get_swagger_ui_html(openapi_url="/openapi.json", title="docs")
 
 
 def run():
-    setproctitle('integration-webservice')
-    uvicorn.run(app=app, host=cs.IS_WEBSERVICE_HOST, port=cs.IS_WEBSERVICE_PORT, workers=cs.IS_WEBSERVICE_WORKERS, log_level=cs.IS_WEBSERVICE_LOG_LEVEL)
+    setproctitle('is-webservice')
+    uvicorn.run(app=app,
+                host=configuration['integration']['asgi']['host'],
+                port=configuration['integration']['asgi']['port'],
+                workers=configuration['integration']['asgi']['workers'],
+                log_level='debug'
+                )

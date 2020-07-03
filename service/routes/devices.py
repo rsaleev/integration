@@ -1,15 +1,18 @@
-from fastapi.routing import APIRouter
-from starlette.responses import Response
-from starlette.background import BackgroundTasks
+import asyncio
 import json
+import re
+import sys
+from itertools import groupby
+from typing import Optional
+
+import asyncssh
+from fastapi.routing import APIRouter
+from pydantic import BaseModel, validator
+from starlette.background import BackgroundTasks
+from starlette.responses import Response
+
 import configuration as cfg
 import integration.service.settings as ws
-import asyncio
-from pydantic import BaseModel, validator
-from typing import Optional
-from itertools import groupby
-import re
-
 
 router = APIRouter()
 
@@ -34,8 +37,6 @@ class DeviceRequestConfig(BaseModel):
     cam_photo_1_ip: Optional[str] = None
     cam_photo_2_ip: Optional[str] = None
     ticket_device: Optional[str] = None
-
-    
 
 
 class DeviceRequstStatus(BaseModel):
@@ -162,4 +163,30 @@ async def modify_device_statuses(ter_id, params: DeviceRequstStatus):
     except Exception as e:
         {'error': 'BAD REQUEST', 'comment': repr(e)}
         data = {'error': 'BAD REQUEST', 'comment': repr(e)}
+        return Response(json.dumps(data, default=str), status_code=500, media_type='application/json')
+
+
+# @router.get('/api.integration/v1/device/{ter_id}/log/targeted')
+# async def get_device_log(ter_id, to_find:List[str]):
+#     device = await ws.DBCONNECTOR_IS.callproc('is_device_get', rows=1, values=[ter_id, None, None, None, None])
+#     if not device is None:
+#         cmd = str
+#         if len(to_find) > 1:
+#             cmd =
+#         async with asyncssh.connect(device['terIp']) as conn:
+#             result = await conn.run(f'cat application.log | grep {to_find}', check=True)
+#             result_list = result.split('==>')
+#             return Response(result.stdout, status_code=200, media_type='text/plain')
+
+
+@router.get('/api/integration/v1/device/{ter_id}/log/verbosed')
+async def get_device_verbosed_log(ter_id, rows: int = 20):
+    device = await ws.DBCONNECTOR_IS.callproc('is_device_get', rows=1, values=[ter_id, None, None, None, None])
+    if not device is None:
+        async with asyncssh.connect(device['terIp']) as conn:
+            result = await conn.run(f'tail -{rows} *.log', check=True)
+            result_list = result.split('==>')
+            return Response(result.stdout, status_code=200, media_type='text/plain')
+    else:
+        data = {'error': 'BAD REQUEST', 'comment': 'Unknown ID'}
         return Response(json.dumps(data, default=str), status_code=500, media_type='application/json')

@@ -1,18 +1,20 @@
-from fastapi.routing import APIRouter
-from starlette.responses import Response, JSONResponse
-from pydantic import BaseModel, validator, ValidationError
-import json
-import dateutil.parser as dp
-from aiomysql import DatabaseError, DataError, OperationalError, ProgrammingError, InternalError
-from pystemd.systemd1 import Unit
-from pystemd.exceptions import PystemdRunError
-from pystemd.dbusexc import DBusFileNotFoundError, DBusFileNotFoundError, DBusAccessDeniedError, DBusFailedError, DBusFileNotFoundError
-from starlette.background import BackgroundTasks
-import integration.service.settings as ws
-from pystemd.exceptions import PystemdRunError
 import asyncio
+import json
 from typing import Optional
-from pydantic import BaseModel
+
+import dateutil.parser as dp
+from aiomysql import (DatabaseError, DataError, InternalError,
+                      OperationalError, ProgrammingError)
+from fastapi.routing import APIRouter
+from pydantic import BaseModel, ValidationError, validator
+from pystemd.dbusexc import (DBusAccessDeniedError, DBusFailedError,
+                             DBusFileNotFoundError)
+from pystemd.exceptions import PystemdRunError
+from pystemd.systemd1 import Unit
+from starlette.background import BackgroundTasks
+from starlette.responses import JSONResponse, Response
+
+import integration.service.settings as ws
 
 router = APIRouter()
 

@@ -13,6 +13,7 @@ import functools
 from uuid import uuid4
 import re
 from setproctitle import setproctitle
+import uvloop
 
 
 class PaymentListener:
@@ -76,7 +77,7 @@ class PaymentListener:
 
     # primary initialization of logging and connections
     async def _initialize(self) -> None:
-        setproctitle('inetgration-payments')
+        setproctitle('is-payments')
         self.__logger = await AsyncLogger().getlogger(cs.IS_LOG)
         await self.__logger.info({'module': self.name, 'msg': 'Starting...'})
         connections_tasks = []
@@ -244,6 +245,7 @@ class PaymentListener:
 
     def run(self) -> None:
         # use own event loop
+        uvloop.install()
         self.eventloop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.eventloop)
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
